@@ -424,7 +424,6 @@ const mostRecentRestaurant = [...(shelfData.restaurants || [])].sort(
           <div class="bg-surface/30 border border-surface rounded-lg p-3.5 space-y-1">
             <h3 class="font-serif text-sm font-semibold text-primary">
               {game.name}
-              <a href="#fn-2" class="text-accent font-mono text-xs font-normal hover:underline ml-1">[3]</a>
             </h3>
             <div class="font-mono text-xs text-accent">{game.streak}</div>
             <div class="font-mono text-[10px] text-muted">best: {game.best}</div>
@@ -437,15 +436,11 @@ const mostRecentRestaurant = [...(shelfData.restaurants || [])].sort(
     <section class="pt-8 border-t border-surface/70 space-y-2 text-xs font-sans text-muted">
       <p id="fn-1">
         <span class="font-mono text-accent text-[11px] mr-1">[1]</span>
-        <span class="italic">Books and films are fetched via public Goodreads and Letterboxd RSS feeds; dining spots and streaks are read from a JSON file with manually exported Beli data.</span>
+        <span class="italic">Books and films are pulled from Goodreads and Letterboxd RSS feeds; foods and streaks are pulled from a JSON with manually exported Beli data.</span>
       </p>
       <p id="fn-2>
         <span class="font-mono text-accent text-[11px] mr-1">[2]
-        <span class="italic"> Thanks Anushka for taking me to literally all of my top 3 food spots</span>
-      </p>
-      <p id="fn-3">
-        <span class="font-mono text-accent text-[11px] mr-1">[3]</span>
-        <span class="italic">Fell off everything else</span>
+        <span class="italic"> Thanks Anushka for taking me to literally all of these</span>
       </p>
     </section>
 
