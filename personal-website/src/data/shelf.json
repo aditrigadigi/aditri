@@ -1,0 +1,13 @@
+{
+  "restaurants": [
+    { "name": "Planta", "city": "Bethesda, MD", "tag": "Asian", "rating": 10.0, "date": "2023-10-29" },
+    { "name": "Pow Pow Franklin Square", "city": "Washington, DC", "tag": "Asian", "rating": 9.9, "date": "2026-03-01" },
+    { "name": "Hangawi", "city": "Washington, DC", "tag": "Korean", "rating": 9.6, "date": "2024-05-18" },
+    { "name": "Taqueria El Buen Sabor", "city": "San Francisco, CA", "tag": "Mexican", "rating": 9.5, "date": "2025-08-12" },
+    { "name": "Bar Bombon", "city": "Philadelphia, PA", "tag": "Latin American", "rating": 7.4, "date": "2026-09-4" }
+
+  ],
+  "games": [
+    { "name": "Minute Cryptic", "streak": "153 days", "best": "153" }
+  ]
+}

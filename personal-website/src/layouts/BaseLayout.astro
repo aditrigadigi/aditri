@@ -1,0 +1,74 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title = "Digital Garden", description = "My personal website and notes." } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" class="bg-bg text-primary antialiased">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="min-h-screen flex flex-col items-center px-6 sm:px-8 py-10 font-sans">
+    <div class="w-full max-w-2xl flex flex-col flex-1">
+      
+      <header class="w-full mb-16">
+        <nav class="flex items-center justify-between text-sm tracking-wide">
+          <a 
+            href="/" 
+            class="font-mono text-base font-bold tracking-widest text-primary hover:text-accent active:text-[#7A1E20] transition-colors duration-200"
+          >
+            home
+          </a>
+
+          <div class="flex items-center space-x-6 sm:space-x-8 lowercase font-sans">
+            <a 
+              href="/experience" 
+              class="text-accent hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+            >experience</a>
+            <a 
+              href="/projects" 
+              class="text-accent hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+            >projects</a>
+            <a 
+              href="/random" 
+              class="text-accent hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+            >random</a>
+          </div>
+        </nav>
+      </header>
+
+      <main class="flex-1 w-full">
+        <slot />
+      </main>
+
+      <footer class="mt-20 pt-8 border-t border-surface text-xs text-muted font-mono flex justify-between">
+        <span>© {new Date().getFullYear()}</span>
+        <a 
+          href="https://github.com" 
+          target="_blank" 
+          rel="noreferrer" 
+          class="text-accent hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+        >
+          source
+        </a>
+      </footer>
+      
+    </div>
+  </body>
+</html>

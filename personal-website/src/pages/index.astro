@@ -1,0 +1,50 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Home — Aditri Gadigi">
+  <section class="mb-12">
+    <h1 class="font-serif text-4xl sm:text-5xl font-bold tracking-tight text-primary mb-4">
+      Aditri Gadigi
+    </h1>
+    
+    <p class="font-serif italic text-muted text-lg leading-relaxed mb-6">
+      I am a rising senior at the University of Maryland, College Park pursuing a Computer Science degree with a minor in Statistics. I also do computational biology research. See my{' '}
+      <a 
+        href="/experience" 
+        class="not-italic text-accent font-medium underline decoration-accent/50 underline-offset-4 hover:decoration-accent hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+      >experience</a>,{' '}
+      <a 
+        href="/projects" 
+        class="not-italic text-accent font-medium underline decoration-accent/50 underline-offset-4 hover:decoration-accent hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+      >projects</a>, and {' '}
+      <a 
+        href="/random" 
+        class="not-italic text-accent font-medium underline decoration-accent/50 underline-offset-4 hover:decoration-accent hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+      >other things</a>. 
+      This site was last updated August 2026.
+    </p>
+
+    <div class="flex items-center space-x-3 font-mono text-xs">
+      <a 
+        href="https://www.linkedin.com/in/aditrig" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        class="text-accent font-medium hover:underline hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+      >
+        linkedin ↗
+      </a>
+      
+      <span class="text-muted/40 font-normal">|</span>
+
+      <a 
+        href="/resume.pdf" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        class="text-accent font-medium hover:underline hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+      >
+        resume ↗
+      </a>
+    </div>
+  </section>
+</BaseLayout>

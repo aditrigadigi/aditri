@@ -1,0 +1,453 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { XMLParser } from 'fast-xml-parser';
+import shelfData from '../data/shelf.json';
+
+// ==========================================
+// 1. CONFIGURATION
+// ==========================================
+const LETTERBOXD_USER = "aditrigadigi"; 
+const GOODREADS_USER_ID = "204504937"; 
+
+interface ShelfEntry {
+  title: string;
+  creatorOrLocation?: string;
+  ratingValue: number;
+  ratingDisplay: string;
+  link: string;
+  pubDate?: Date;
+  isFavorite?: boolean;
+}
+
+function formatStars(score: number): string {
+  const full = Math.floor(score);
+  const half = score % 1 !== 0;
+  return "★".repeat(full) + (half ? "½" : "");
+}
+
+function extractStarsFromTitle(title: string): { cleanTitle: string; stars?: string; score?: number } {
+  const match = title.match(/^(.*?)(?:,\s*(\d{4}))?\s*-\s*([★½]+)$/);
+  if (match) {
+    const rawStars = match[3];
+    const fullStars = (rawStars.match(/★/g) || []).length;
+    const hasHalf = rawStars.includes('½');
+    const score = fullStars + (hasHalf ? 0.5 : 0);
+    return { cleanTitle: match[1].trim(), stars: rawStars, score };
+  }
+  return { cleanTitle: title };
+}
+
+// ==========================================
+// 2. LIVE LETTERBOXD FETCH
+// ==========================================
+let allFilms: ShelfEntry[] = [];
+let profileFavorites: ShelfEntry[] = [];
+
+try {
+  const lbRes = await fetch(`https://letterboxd.com/${LETTERBOXD_USER}/rss/?t=${Date.now()}`, {
+    headers: { 'User-Agent': 'Mozilla/5.0' }
+  });
+
+  if (lbRes.ok) {
+    const xml = await lbRes.text();
+    const parser = new XMLParser({ 
+      ignoreAttributes: false,
+      removeNSPrefix: false 
+    });
+    const parsed = parser.parse(xml);
+    const items = parsed?.rss?.channel?.item;
+
+    if (items) {
+      const feedItems = Array.isArray(items) ? items : [items];
+
+      for (const item of feedItems) {
+        const rawTitle = item.title || "";
+        const titleParsed = extractStarsFromTitle(rawTitle);
+
+        let numericRating: number | null = null;
+        if (item["letterboxd:memberRating"] !== undefined) {
+          numericRating = parseFloat(item["letterboxd:memberRating"]);
+        } else if (titleParsed.score !== undefined) {
+          numericRating = titleParsed.score;
+        }
+
+        const dateStr = item["letterboxd:watchedDate"] || item.pubDate;
+        const watchDate = dateStr ? new Date(dateStr) : new Date(0);
+
+        const categories = Array.isArray(item.category) ? item.category : [item.category].filter(Boolean);
+        const isFav = categories.some((c: any) => 
+          typeof c === 'string' ? c.toLowerCase().includes('favorite') : c?.['#text']?.toLowerCase().includes('favorite')
+        );
+
+        if (numericRating !== null && !isNaN(numericRating) && numericRating > 0) {
+          const entry: ShelfEntry = {
+            title: item["letterboxd:filmTitle"] || titleParsed.cleanTitle,
+            creatorOrLocation: item["letterboxd:filmYear"] ? `${item["letterboxd:filmYear"]}` : undefined,
+            ratingValue: numericRating,
+            ratingDisplay: formatStars(numericRating),
+            link: item.link || `https://letterboxd.com/${LETTERBOXD_USER}`,
+            pubDate: watchDate,
+            isFavorite: isFav
+          };
+
+          allFilms.push(entry);
+          if (isFav) profileFavorites.push(entry);
+        }
+      }
+    }
+  }
+
+  // Fallback: check favorites feed endpoint
+  if (profileFavorites.length === 0) {
+    try {
+      const favRes = await fetch(`https://letterboxd.com/${LETTERBOXD_USER}/favorites/rss/?t=${Date.now()}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      });
+      if (favRes.ok) {
+        const favXml = await favRes.text();
+        const favParser = new XMLParser({ ignoreAttributes: false, removeNSPrefix: false });
+        const favParsed = favParser.parse(favXml);
+        const favItems = favParsed?.rss?.channel?.item;
+        if (favItems) {
+          const listItems = Array.isArray(favItems) ? favItems : [favItems];
+          profileFavorites = listItems.slice(0, 3).map((item: any) => ({
+            title: item["letterboxd:filmTitle"] || item.title,
+            creatorOrLocation: item["letterboxd:filmYear"] ? `${item["letterboxd:filmYear"]}` : undefined,
+            ratingValue: 5,
+            ratingDisplay: "★★★★★",
+            link: item.link || `https://letterboxd.com/${LETTERBOXD_USER}`
+          }));
+        }
+      }
+    } catch {
+      // Continue silently if unavailable
+    }
+  }
+
+} catch (e) {
+  console.warn("Could not fetch Letterboxd feed.", e);
+}
+
+const topFilms = profileFavorites.length > 0 
+  ? profileFavorites.slice(0, 3) 
+  : [...allFilms].sort((a, b) => b.ratingValue - a.ratingValue).slice(0, 3);
+
+const mostRecentFilm = [...allFilms].sort((a, b) => (b.pubDate?.getTime() || 0) - (a.pubDate?.getTime() || 0))[0];
+
+// ==========================================
+// 3. GOODREADS FETCH
+// ==========================================
+let allBooks: ShelfEntry[] = [];
+let currentlyReading: ShelfEntry | null = null;
+
+try {
+  const grCurrentRes = await fetch(
+    `https://www.goodreads.com/review/list_rss/${GOODREADS_USER_ID}?shelf=currently-reading&t=${Date.now()}`,
+    { headers: { 'User-Agent': 'Mozilla/5.0' } }
+  );
+  if (grCurrentRes.ok) {
+    const xml = await grCurrentRes.text();
+    const parser = new XMLParser({ ignoreAttributes: false });
+    const parsed = parser.parse(xml);
+    const items = parsed?.rss?.channel?.item;
+
+    if (items) {
+      const currentItems = Array.isArray(items) ? items : [items];
+      const activeBook = currentItems[0];
+      if (activeBook && activeBook.title) {
+        currentlyReading = {
+          title: activeBook.title || "Untitled",
+          creatorOrLocation: activeBook.author_name ? `by ${activeBook.author_name}` : undefined,
+          ratingValue: 0,
+          ratingDisplay: "Reading Now",
+          link: activeBook.link || `https://www.goodreads.com/user/show/${GOODREADS_USER_ID}`
+        };
+      }
+    }
+  }
+
+  const grReadRes = await fetch(
+    `https://www.goodreads.com/review/list_rss/${GOODREADS_USER_ID}?shelf=read&t=${Date.now()}`,
+    { headers: { 'User-Agent': 'Mozilla/5.0' } }
+  );
+  if (grReadRes.ok) {
+    const xml = await grReadRes.text();
+    const parser = new XMLParser({ ignoreAttributes: false });
+    const parsed = parser.parse(xml);
+    const items = parsed?.rss?.channel?.item;
+
+    if (items) {
+      const feedItems = Array.isArray(items) ? items : [items];
+      allBooks = feedItems.map((item: any) => {
+        const score = parseInt(item.user_rating, 10) || 0;
+        return {
+          title: item.title || "Untitled",
+          creatorOrLocation: item.author_name ? `by ${item.author_name}` : undefined,
+          ratingValue: score,
+          ratingDisplay: score > 0 ? "★".repeat(score) : "Read",
+          link: item.link || `https://www.goodreads.com/user/show/${GOODREADS_USER_ID}`,
+          pubDate: item.pubDate ? new Date(item.pubDate) : new Date(0)
+        };
+      });
+    }
+  }
+} catch (e) {
+  console.warn("Could not load Goodreads feed.", e);
+}
+
+if (allBooks.length === 0) {
+  allBooks = [
+    { title: "Klara and the Sun", creatorOrLocation: "by Kazuo Ishiguro", ratingValue: 5, ratingDisplay: "★★★★★", link: "https://www.goodreads.com", pubDate: new Date("2024-02-15") }
+  ];
+}
+
+const topBook = [...allBooks].sort((a, b) => b.ratingValue - a.ratingValue)[0];
+const mostRecentBook = currentlyReading || [...allBooks].sort((a, b) => (b.pubDate?.getTime() || 0) - (a.pubDate?.getTime() || 0))[0];
+
+// ==========================================
+// 4. RESTAURANTS & GAMES (shelf.json)
+// ==========================================
+const sortedRestaurants = [...(shelfData.restaurants || [])].sort((a, b) => b.rating - a.rating);
+const topRestaurants = sortedRestaurants.slice(0, 3);
+
+const mostRecentRestaurant = [...(shelfData.restaurants || [])].sort(
+  (a, b) => new Date(b.date || "1970-01-01").getTime() - new Date(a.date || "1970-01-01").getTime()
+)[0];
+---
+
+<BaseLayout title="My Shelf" description="Favorites, media logs, and daily pursuits.">
+  <!-- Page Header -->
+  <section class="mb-12">
+    <h1 class="font-serif text-4xl sm:text-5xl font-bold tracking-tight text-primary mb-3">
+      My Shelf
+    </h1>
+    <p class="font-serif italic text-muted text-base leading-relaxed mb-2">
+      I like tracking things.
+      <a href="#fn-1" class="text-accent font-mono text-[11px] hover:underline"> [1]</a>
+
+    </p>
+
+    <!-- Outward Platform Links -->
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs">
+      <a 
+        href={`https://www.goodreads.com/user/show/${GOODREADS_USER_ID}`}
+        target="_blank" 
+        rel="noopener noreferrer" 
+        class="text-accent hover:underline hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+      >
+        goodreads ↗
+      </a>
+      <span class="text-muted/40">|</span>
+      <a 
+        href={`https://letterboxd.com/${LETTERBOXD_USER}`}
+        target="_blank" 
+        rel="noopener noreferrer" 
+        class="text-accent hover:underline hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+      >
+        letterboxd ↗
+      </a>
+      <span class="text-muted/40">|</span>
+      <a 
+        href="https://beliapp.co" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        class="text-accent hover:underline hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+      >
+        beli ↗
+      </a>
+    </div>
+  </section>
+
+  <div class="space-y-16">
+
+    <!-- SECTION 01: ALL-TIME FAVORITES -->
+    <section>
+      <div class="flex items-baseline space-x-2 border-b border-surface pb-3 mb-8">
+        <h2 class="font-serif text-2xl font-semibold text-primary">
+          Favorites
+        </h2>
+        <span class="text-accent font-mono text-sm">/ 01</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- Top 1 Book -->
+        <div class="bg-surface/30 border border-surface rounded-xl p-5 flex flex-col justify-between space-y-4">
+          <div class="flex items-baseline justify-between border-b border-surface/70 pb-2">
+            <h3 class="font-serif font-semibold text-primary text-base">Book</h3>
+            <span class="font-mono text-[10px] text-muted uppercase tracking-wider">Top 1</span>
+          </div>
+          {topBook && (
+            <a href={topBook.link} target="_blank" rel="noopener noreferrer" class="group block text-xs space-y-1 my-auto">
+              <div class="flex items-baseline justify-between">
+                <span class="font-serif font-medium text-primary text-sm group-hover:text-accent group-hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200 line-clamp-2">{topBook.title}</span>
+                <span class="font-mono text-xs text-accent shrink-0 ml-2">{topBook.ratingDisplay}</span>
+              </div>
+              {topBook.creatorOrLocation && <p class="text-xs text-muted">{topBook.creatorOrLocation}</p>}
+            </a>
+          )}
+        </div>
+
+        <!-- Top Films -->
+        <div class="bg-surface/30 border border-surface rounded-xl p-5 space-y-4">
+          <div class="flex items-baseline justify-between border-b border-surface/70 pb-2">
+            <h3 class="font-serif font-semibold text-primary text-base">Cinema</h3>
+            <span class="font-mono text-[10px] text-muted uppercase tracking-wider">Top 3</span>
+          </div>
+          <div class="space-y-3">
+            {topFilms.map((f) => (
+              <a href={f.link} target="_blank" rel="noopener noreferrer" class="group block text-xs space-y-0.5">
+                <div class="flex items-baseline justify-between">
+                  <span class="font-serif font-medium text-primary group-hover:text-accent group-hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200 line-clamp-1">{f.title}</span>
+                  <span class="font-mono text-[11px] text-accent shrink-0 ml-2">{f.ratingDisplay}</span>
+                </div>
+                {f.creatorOrLocation && <p class="text-[11px] text-muted">{f.creatorOrLocation}</p>}
+              </a>
+            ))}
+          </div>
+        </div>
+
+        <!-- Top Restaurants -->
+        <div class="bg-surface/30 border border-surface rounded-xl p-5 space-y-4">
+          <div class="flex items-baseline justify-between border-b border-surface/70 pb-2">
+            <div class="flex items-baseline space-x-1">
+              <h3 class="font-serif font-semibold text-primary text-base">Dining</h3>
+              <a href="#fn-1" class="text-accent font-mono text-[11px] hover:underline">[2]</a>
+            </div>
+            <span class="font-mono text-[10px] text-muted uppercase tracking-wider">Top 3</span>
+          </div>
+          <div class="space-y-3">
+            {topRestaurants.map((r) => (
+              <div class="text-xs space-y-0.5">
+                <div class="flex items-baseline justify-between">
+                  <span class="font-serif font-medium text-primary line-clamp-1">{r.name}</span>
+                  <span class="font-mono text-[11px] font-semibold text-accent shrink-0 ml-2">{r.rating}</span>
+                </div>
+                <p class="text-[11px] text-muted">{r.city} · {r.tag}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- SECTION 02: RECENTLY RATED & CURRENT READING -->
+    <section>
+      <div class="flex items-baseline space-x-2 border-b border-surface pb-3 mb-8">
+        <h2 class="font-serif text-2xl font-semibold text-primary">
+          Recently Rated
+        </h2>
+        <span class="text-accent font-mono text-sm">/ 02</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        
+        <!-- Latest Book -->
+        {mostRecentBook && (
+          <div class="border border-surface/80 rounded-xl p-4 bg-surface/20 flex flex-col justify-between space-y-3">
+            <div>
+              <span class="font-mono text-[10px] text-muted uppercase tracking-wider block mb-1">
+                {currentlyReading ? "Currently Reading" : "Latest Book"}
+              </span>
+              <a href={mostRecentBook.link} target="_blank" rel="noopener noreferrer" class="group">
+                <h3 class="font-serif font-semibold text-sm text-primary group-hover:text-accent group-hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200 line-clamp-2">
+                  {mostRecentBook.title}
+                </h3>
+              </a>
+              {mostRecentBook.creatorOrLocation && (
+                <p class="text-xs text-muted mt-0.5">{mostRecentBook.creatorOrLocation}</p>
+              )}
+            </div>
+            <div class="font-mono text-xs text-accent">
+              {mostRecentBook.ratingDisplay}
+            </div>
+          </div>
+        )}
+
+        <!-- Latest Film -->
+        {mostRecentFilm && (
+          <div class="border border-surface/80 rounded-xl p-4 bg-surface/20 flex flex-col justify-between space-y-3">
+            <div>
+              <span class="font-mono text-[10px] text-muted uppercase tracking-wider block mb-1">
+                Latest Film Logged
+              </span>
+              <a href={mostRecentFilm.link} target="_blank" rel="noopener noreferrer" class="group">
+                <h3 class="font-serif font-semibold text-sm text-primary group-hover:text-accent group-hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200 line-clamp-2">
+                  {mostRecentFilm.title}
+                </h3>
+              </a>
+              {mostRecentFilm.creatorOrLocation && (
+                <p class="text-xs text-muted mt-0.5">{mostRecentFilm.creatorOrLocation}</p>
+              )}
+            </div>
+            <div class="font-mono text-xs text-accent">
+              {mostRecentFilm.ratingDisplay}
+            </div>
+          </div>
+        )}
+
+        <!-- Latest Restaurant -->
+        {mostRecentRestaurant && (
+          <div class="border border-surface/80 rounded-xl p-4 bg-surface/20 flex flex-col justify-between space-y-3">
+            <div>
+              <span class="font-mono text-[10px] text-muted uppercase tracking-wider block mb-1">
+                Latest Beli Spot
+              </span>
+              <h3 class="font-serif font-semibold text-sm text-primary line-clamp-1">
+                {mostRecentRestaurant.name}
+              </h3>
+              <p class="text-xs text-muted mt-0.5">
+                {mostRecentRestaurant.city} · {mostRecentRestaurant.tag}
+              </p>
+            </div>
+            <div class="font-mono text-xs font-semibold text-accent">
+              {mostRecentRestaurant.rating} / 10
+            </div>
+          </div>
+        )}
+
+      </div>
+    </section>
+
+    <!-- SECTION 03: DAILY PUZZLE STREAKS -->
+    <section>
+      <div class="flex items-baseline space-x-2 border-b border-surface pb-3 mb-6">
+        <h2 class="font-serif text-2xl font-semibold text-primary">
+          Streaks 
+        </h2>
+        <span class="text-accent font-mono text-sm">/ 03</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {(shelfData.games || []).map((game) => (
+          <div class="bg-surface/30 border border-surface rounded-lg p-3.5 space-y-1">
+            <h3 class="font-serif text-sm font-semibold text-primary">
+              {game.name}
+              <a href="#fn-2" class="text-accent font-mono text-xs font-normal hover:underline ml-1">[3]</a>
+            </h3>
+            <div class="font-mono text-xs text-accent">{game.streak}</div>
+            <div class="font-mono text-[10px] text-muted">best: {game.best}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- FOOTNOTES -->
+    <section class="pt-8 border-t border-surface/70 space-y-2 text-xs font-sans text-muted">
+      <p id="fn-1">
+        <span class="font-mono text-accent text-[11px] mr-1">[1]</span>
+        <span class="italic">Books and films are fetched via public Goodreads and Letterboxd RSS feeds; dining spots and streaks are read from a JSON file with manually exported Beli data.</span>
+      </p>
+      <p id="fn-2>
+        <span class="font-mono text-accent text-[11px] mr-1">[2]
+        <span class="italic"> Thanks Anushka for taking me to literally all of my top 3 food spots</span>
+      </p>
+      <p id="fn-3">
+        <span class="font-mono text-accent text-[11px] mr-1">[3]</span>
+        <span class="italic">Fell off everything else</span>
+      </p>
+    </section>
+
+  </div>
+</BaseLayout>

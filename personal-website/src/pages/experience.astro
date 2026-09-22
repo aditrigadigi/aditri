@@ -1,0 +1,223 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+interface Role {
+  title: string;
+  organization: string;
+  labOrTeam?: string;
+  period: string;
+  location?: string;
+  description?: string; 
+  links?: LinkItem[]; 
+}
+
+const workExperience: Role[] = [
+  {
+    title: "Bioanalytics and Data Automation Intern",
+    organization: "Merck",
+    period: "Jun 2026 – Aug 2026",
+    location: "Rahway, NJ"
+  },
+  {
+    title: "Computational Biology Research Intern (Tri-I CBSP)",
+    organization: "Weill Cornell Medicine",
+    labOrTeam: "Khurana Lab",
+    period: "Jun 2025 – Aug 2025",
+    location: "New York, NY"
+  },
+  {
+    title: "Bioinformatics Research Intern",
+    organization: "University of Maryland",
+    labOrTeam: "Pop Lab",
+    period: "Jan 2024 – Present",
+    location: "College Park, MD",
+  },
+  {
+    title: "Research Software Engineer Intern",
+    organization: "National Cancer Institute",
+    period: "Jun 2024 – Aug 2024",
+    location: "Rockville, MD",
+  },
+  {
+    title: "Software Engineer Intern",
+    organization: "Immuta",
+    period: "Dec 2023 – Jan 2024",
+    location: "College Park, MD",
+  }
+];
+
+const activities: Role[] = [
+  {
+    title: "Course Instructor (BSCI238I)",
+    organization: "University of Maryland",
+    period: "Aug 2025 – Present",
+    location: "College Park, MD",
+    description:
+      "Designed and delivered a curriculum from scratch with my friend Anushka, covering the foundations of machine learning and its applications to the life sciences.",
+    links:[{ text: "course website ↗", url: "https://aditrigadigi.github.io/BSCI238I/" }]
+  },
+  {
+    title: "Modeling Co-Chair",
+    organization: "UMaryland International Genetically Engineered Machine (iGEM)",
+    period: "Nov 2023 – Present",
+    location: "College Park, MD",
+    description:
+      "Developing a novel point-of-care cervical cancer screening device using toehold switch technology (2024) and a optogentics tool kit to control gene expression (2025). Co-leading the modeling committee. Presented in International Jamboree in Paris and won a Gold Medal (2024) and a Silver Medal (2025).",
+    links:[{ text: "2024 project ↗", url: "https://2024.igem.wiki/umaryland/" }, { text: "2025 project ↗", url: "https://2025.igem.wiki/umaryland/" }]
+  },
+    {
+    title: "Co-Founder and Co-President",
+    organization: "Maryland Malhar",
+    period: "Aug 2024 - May 2026",
+    location: "College Park, MD",
+    description:
+      "Co-created Indian Classical Music club at UMD. Organized concerts, lecture demonstrations, showcases, fundraisers, etc.",
+    links:[{ text: "malhar insta ↗", url: "https://www.instagram.com/marylandmalhar/" }]
+    
+  },
+  {
+    title: "Finance Organizer",
+    organization: "Bitcamp",
+    period: "Oct 2023 – Present",
+    location: "College Park, MD",
+    description:
+      "Establishing partnerships and securing sponsorships for Maryland's premier hackathon while managing invoicing, reimbursement, and budgeting.",
+    links:[{ text: "bitcamp 2026 ↗", url: "https://2026.bit.camp/" }]
+    
+  }
+
+];
+---
+
+<BaseLayout title="Experience — Aditri Gadigi">
+  <section class="mb-12">
+    <h1 class="font-serif text-4xl sm:text-5xl font-bold tracking-tight text-primary mb-3">
+      Experience
+    </h1>
+    <p class="font-serif italic text-muted text-base leading-relaxed">
+      My work experience (01) and my activities (02).
+    </p>
+  </section>
+
+  <section class="mb-16">
+    <div class="flex items-baseline space-x-2 border-b border-surface pb-3 mb-8">
+      <h2 class="font-serif text-2xl font-semibold text-primary">
+        Work Experience
+      </h2>
+      <span class="text-accent font-mono text-sm">/ 01</span>
+    </div>
+
+    <div class="space-y-10">
+      {workExperience.map((exp) => (
+        <article class="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-2 md:gap-6 items-baseline">
+          <div class="font-mono text-xs text-muted/80 tracking-tight">
+            <time>{exp.period}</time>
+            {exp.location && <div class="text-[11px] text-muted/60 mt-0.5">{exp.location}</div>}
+          </div>
+
+          <div class="space-y-2">
+            <div>
+              <h3 class="font-serif text-lg font-semibold text-primary leading-snug">
+                {exp.title}
+              </h3>
+              <p class="text-sm font-sans text-accent font-medium">
+                {exp.organization}
+                {exp.labOrTeam && (
+                  <span class="text-muted font-normal"> · {exp.labOrTeam}</span>
+                )}
+              </p>
+            </div>
+
+            {exp.description && (
+              <p 
+                class="text-sm text-primary/85 leading-relaxed" 
+                set:html={exp.description} 
+              />
+            )}
+
+            {exp.links && exp.links.length > 0 && (
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs pt-1">
+                {exp.links.map((link, idx) => (
+                  <>
+                    <a 
+                      href={link.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      class="text-accent hover:underline hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+                    >
+                      {link.text}
+                    </a>
+                    {idx < exp.links.length - 1 && (
+                      <span class="text-muted/40 font-normal">|</span>
+                    )}
+                  </>
+                ))}
+              </div>
+            )}
+          </div>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section>
+    <div class="flex items-baseline space-x-2 border-b border-surface pb-3 mb-8">
+      <h2 class="font-serif text-2xl font-semibold text-primary">
+        Activities
+      </h2>
+      <span class="text-accent font-mono text-sm">/ 02</span>
+    </div>
+
+    <div class="space-y-10">
+      {activities.map((exp) => (
+        <article class="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-2 md:gap-6 items-baseline">
+          <div class="font-mono text-xs text-muted/80 tracking-tight">
+            <time>{exp.period}</time>
+            {exp.location && <div class="text-[11px] text-muted/60 mt-0.5">{exp.location}</div>}
+          </div>
+
+          <div class="space-y-2">
+            <div>
+              <h3 class="font-serif text-lg font-semibold text-primary leading-snug">
+                {exp.title}
+              </h3>
+              <p class="text-sm font-sans text-accent font-medium">
+                {exp.organization}
+                {exp.labOrTeam && (
+                  <span class="text-muted font-normal"> · {exp.labOrTeam}</span>
+                )}
+              </p>
+            </div>
+
+            {exp.description && (
+              <p 
+                class="text-sm text-primary/85 leading-relaxed" 
+                set:html={exp.description} 
+              />
+            )}
+
+            {exp.links && exp.links.length > 0 && (
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs pt-1">
+                {exp.links.map((link, idx) => (
+                  <>
+                    <a 
+                      href={link.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      class="text-accent hover:underline hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+                    >
+                      {link.text}
+                    </a>
+                    {idx < exp.links.length - 1 && (
+                      <span class="text-muted/40 font-normal">|</span>
+                    )}
+                  </>
+                ))}
+              </div>
+            )}
+          </div>
+        </article>
+      ))}
+    </div>
+  </section>
+</BaseLayout>

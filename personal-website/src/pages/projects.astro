@@ -1,0 +1,178 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+interface ProjectLink {
+  text: string;
+  url: string;
+}
+
+interface Project {
+  title: string;
+  category?: string;
+  period: string;
+  affiliation?: string;
+  description: string;
+  myRole?: string;
+  collaborators?: string[];
+  skills?: string[];
+  links?: ProjectLink[];
+}
+
+const projects: Project[] = [
+  {
+    title: "Cell Line Image Classification with ResNet-18",
+    period: "2026",
+    description:
+      "Fine-tuned a pretrained ResNet-18 convolutional neural network to classify 14 distinct cell lines from differential interference contrast (DIC) microscopy frames in the CTMC-v1 challenge dataset in a team of 4. Addressed severe class imbalance using frequency-weighted cross-entropy loss and aggressive data augmentation, achieving 75.8% test accuracy, 0.673 macro F1, and 0.972 AUROC. Conducted OFAT hyperparameter sensitivity analysis across frame sampling rates, epochs, weight decay, and dropout.",
+    skills: ["PyTorch", "ResNet-18", "Computer Vision","Data Science"],
+    links: [
+      { text: "report (pdf) ↗", url: "/workspaces/aditri/personal-website/public/files/CMSC472_Final_Project_Report (2).pdf" },
+      { text: "github ↗", url: "https://github.com/ibv3/cmsc472_final.git" }
+    ]
+  },
+  {
+    title: "Protein Secondary Structure Prediction with ESM-2 & MLPs",
+    period: "2026",
+    description:
+      "Trained a lightweight two-layer MLP token classifier on top of frozen 640-dimensional ESM-2 protein language model embeddings (esm2_t30_150M_UR50D) to predict residue-level secondary structure states (Helix, Strand, Coil). Achieved 80.6% mean accuracy and 0.807 macro F1 across 5-fold cross-validation on curated high-resolution PDB structures. Worked in a team of 5.",
+    skills: ["Python", "PyTorch", "ESM-2", "DSSP", "PCA"]
+  },
+
+  {
+    title: "BSCI238I: Machine Learning in the Life Sciences",
+    period: "Aug 2025",
+    description:
+      "Designed, delivered, and published a curriculum from scratch covering the foundations of machine learning (regression, classification, unsupervised learning, deep learning, CNNs, LLMs) and its applications to the life sciences.",
+    skills: ["Machine Learning", "Deep Learning", "CNNs", "LLMs", "Curriculum Design", "Presentation"],
+    links: [
+      { text: "course website ↗", url: "https://aditrigadigi.github.io/BSCI238I/" }
+    ]
+  },
+  {
+    title: "Central Park Squirrel Behavior & Spatial Movement Explorer",
+    period: "2026",
+    description:
+      "Built an interactive geospatial visualization tool mapping 3,000+ squirrel sightings across Central Park using the NYC Squirrel Census dataset with a team of 5. Allows multi-dimensional filtering across spatial coordinates, shift (AM/PM), fur color distributions, location planes (ground vs. above ground), and human-interaction behavioral responses (approaches, runs, indifferent).",
+    skills: ["JavaScript", "D3.js", "Leaflet", "CSS", "HTML", "Geospatial Analysis"],
+    links: [
+      { text: "live tool ↗", url: "https://apoddar76.github.io/cmsc471-finalproject/" },
+      { text: "github ↗", url: "https://github.com/apoddar76/cmsc471-finalproject" }
+    ]
+  },
+  {
+    title: "CerviCare",
+    period: "2024-2025",
+    affiliation: "UMaryland iGEM",
+    description:
+      "Developed a novel point-of-care cervical cancer screening device using toehold switch technology, leading research on toehold switch design, software tools for toehold design, differential equation modeling of the system, and project impact (2024). Won an international Gold Medal.",
+    skills: ["Python", "Full Stack", "UI/UX", "Differential Equations", "MATLAB", "Toehold Design", "Synthetic Biology"],
+    links: [
+      { text: "2025 wiki ↗", url: "https://2025.igem.wiki/umaryland/" }
+    ]
+  },
+  {
+    title: "RGBio",
+    period: "2024-2025",
+    affiliation: "UMaryland iGEM",
+    description:
+      "Developed an optogenetics tool kit for bioplastic production, leading research on an LED array device to test our wet lab experiments, a software tool to streamline and design experiments, and a photocoverstion differential equation model (2025). Presented at the iGEM Grand Jamboree in Paris and awarded a Silver Medal (2025).",
+    skills: ["Python", "ODE Modeling", "Genetic Circuits"],
+    links: [
+      { text: "2024 wiki ↗", url: "https://2024.igem.wiki/umaryland/" }
+    ]
+  }
+];
+---
+
+<BaseLayout title="Projects — Aditri Gadigi">
+  <!-- Page Header -->
+  <section class="mb-12">
+    <h1 class="font-serif text-4xl sm:text-5xl font-bold tracking-tight text-primary mb-3">
+      Projects
+    </h1>
+    <p class="font-serif italic text-muted text-base leading-relaxed">
+      Some things I have worked on.
+    </p>
+  </section>
+
+  <!-- Single Column Tile List -->
+  <div class="space-y-6">
+    {projects.map((proj) => (
+      <div class="bg-surface/30 border border-surface rounded-xl p-6 sm:p-7 hover:border-accent/40 transition-colors duration-200 flex flex-col justify-between space-y-4">
+        
+        <!-- Header Info -->
+        <div class="space-y-2">
+          <div class="flex flex-wrap items-center justify-between gap-2 font-mono text-xs text-muted">
+            <time>{proj.period}</time>
+            {proj.category && (
+              <span class="px-2 py-0.5 rounded bg-surface text-muted text-[11px] border border-surface">
+                {proj.category}
+              </span>
+            )}
+          </div>
+
+          <div>
+            <h2 class="font-serif text-xl font-semibold text-primary leading-snug">
+              {proj.title}
+            </h2>
+            {proj.affiliation && (
+              <p class="text-sm font-sans text-accent font-medium mt-0.5">
+                {proj.affiliation}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <!-- Description & Role -->
+        <div class="space-y-3 text-sm text-primary/85 leading-relaxed">
+          <p>{proj.description}</p>
+
+          {proj.myRole && (
+            <p class="text-xs text-muted leading-relaxed font-sans pt-1 border-t border-surface/60">
+              <strong class="text-primary font-medium">My role:</strong> {proj.myRole}
+            </p>
+          )}
+
+          {proj.collaborators && proj.collaborators.length > 0 && (
+            <p class="text-xs text-muted/70 font-sans">
+              <span>With: {proj.collaborators.join(', ')}</span>
+            </p>
+          )}
+        </div>
+
+        <!-- Optional Skills Pills -->
+        {proj.skills && proj.skills.length > 0 && (
+          <div class="flex flex-wrap gap-1.5 pt-1">
+            {proj.skills.map((skill) => (
+              <span class="font-mono text-[11px] px-2 py-0.5 rounded bg-surface text-muted/90 border border-surface/80">
+                {skill}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <!-- Action Links -->
+        {proj.links && proj.links.length > 0 && (
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs pt-2 border-t border-surface/60">
+            {proj.links.map((link, idx) => (
+              <>
+                <a 
+                  href={link.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  class="text-accent font-medium hover:underline hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+                >
+                  {link.text}
+                </a>
+                {idx < proj.links.length - 1 && (
+                  <span class="text-muted/40 font-normal">|</span>
+                )}
+              </>
+            ))}
+          </div>
+        )}
+
+      </div>
+    ))}
+  </div>
+</BaseLayout>
