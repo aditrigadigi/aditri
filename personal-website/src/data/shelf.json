@@ -8,6 +8,8 @@
 
   ],
   "games": [
-    { "name": "Minute Cryptic", "streak": "153 days", "best": "153" }
+    { "name": "Minute Cryptic", "streak": "153 days", "best": "153" },
+    { "name": "Globle", "streak": "0 days", "best": "56" },
+    { "name": "Worldle", "streak": "0 days", "best": "56" }
   ]
 }
