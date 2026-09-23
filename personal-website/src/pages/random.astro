@@ -1,10 +1,12 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import TravelMap from '../components/TravelMap.astro';
 import { XMLParser } from 'fast-xml-parser';
 import shelfData from '../data/shelf.json';
+import travelData from '../data/travel.json';
 
 // ==========================================
-// 1. CONFIGURATION
+// 1. CONFIGURATION & TYPES
 // ==========================================
 const LETTERBOXD_USER = "aditrigadigi"; 
 const GOODREADS_USER_ID = "204504937"; 
@@ -15,9 +17,49 @@ interface ShelfEntry {
   ratingValue: number;
   ratingDisplay: string;
   link: string;
+  imageUrl?: string;
   pubDate?: Date;
   isFavorite?: boolean;
 }
+
+const topFilms: ShelfEntry[] = [
+  {
+    title: "Inception",
+    creatorOrLocation: "2010",
+    ratingValue: 5,
+    ratingDisplay: "★★★★★",
+    link: "https://letterboxd.com/aditrigadigi/inception/",
+    imageUrl: "https://a.ltrbxd.com/resized/sm/upload/sv/95/s9/4j/inception-0-2000-0-3000-crop.jpg?v=30d7224316",
+    isFavorite: true
+  },
+  {
+    title: "Everything Everywhere All at Once",
+    creatorOrLocation: "2022",
+    ratingValue: 5,
+    ratingDisplay: "★★★★★",
+    link: "https://letterboxd.com/aditrigadigi/everything-everywhere-all-at-once/",
+    imageUrl: "https://a.ltrbxd.com/resized/film-poster/4/7/4/4/7/4/474474-everything-everywhere-all-at-once-0-2000-0-3000-crop.jpg?v=281f1a041e",
+    isFavorite: true
+  },
+  {
+    title: "Knives Out",
+    creatorOrLocation: "2019",
+    ratingValue: 5,
+    ratingDisplay: "★★★★★",
+    link: "https://letterboxd.com/aditrigadigi/film/knives-out-2019/",
+    imageUrl: "https://a.ltrbxd.com/resized/film-poster/4/7/5/3/7/0/475370-knives-out-0-2000-0-3000-crop.jpg?v=7da76d742c",
+    isFavorite: true
+  },
+  {
+    title: "Obsession",
+    creatorOrLocation: "2025",
+    ratingValue: 5,
+    ratingDisplay: "★★★★★",
+    link: "https://letterboxd.com/aditrigadigi/film/obsession-2025/",
+    imageUrl: "https://a.ltrbxd.com/resized/film-poster/1/2/3/4/4/7/2/1234472-obsession-2025-2-0-2000-0-3000-crop.jpg?v=cff6fc00b6",
+    isFavorite: true
+  }
+];
 
 function formatStars(score: number): string {
   const full = Math.floor(score);
@@ -37,12 +79,16 @@ function extractStarsFromTitle(title: string): { cleanTitle: string; stars?: str
   return { cleanTitle: title };
 }
 
+function extractPosterFromHtml(html: string): string | undefined {
+  if (!html) return undefined;
+  const match = html.match(/<img[^>]+src="([^">]+)"/i);
+  return match ? match[1] : undefined;
+}
+
 // ==========================================
-// 2. LIVE LETTERBOXD FETCH
+// 2. LIVE LETTERBOXD FETCH (FOR LATEST)
 // ==========================================
 let allFilms: ShelfEntry[] = [];
-let profileFavorites: ShelfEntry[] = [];
-
 try {
   const lbRes = await fetch(`https://letterboxd.com/${LETTERBOXD_USER}/rss/?t=${Date.now()}`, {
     headers: { 'User-Agent': 'Mozilla/5.0' }
@@ -50,10 +96,7 @@ try {
 
   if (lbRes.ok) {
     const xml = await lbRes.text();
-    const parser = new XMLParser({ 
-      ignoreAttributes: false,
-      removeNSPrefix: false 
-    });
+    const parser = new XMLParser({ ignoreAttributes: false, removeNSPrefix: false });
     const parsed = parser.parse(xml);
     const items = parsed?.rss?.channel?.item;
 
@@ -73,74 +116,36 @@ try {
 
         const dateStr = item["letterboxd:watchedDate"] || item.pubDate;
         const watchDate = dateStr ? new Date(dateStr) : new Date(0);
-
-        const categories = Array.isArray(item.category) ? item.category : [item.category].filter(Boolean);
-        const isFav = categories.some((c: any) => 
-          typeof c === 'string' ? c.toLowerCase().includes('favorite') : c?.['#text']?.toLowerCase().includes('favorite')
-        );
+        const poster = extractPosterFromHtml(item.description || "");
 
         if (numericRating !== null && !isNaN(numericRating) && numericRating > 0) {
-          const entry: ShelfEntry = {
+          allFilms.push({
             title: item["letterboxd:filmTitle"] || titleParsed.cleanTitle,
             creatorOrLocation: item["letterboxd:filmYear"] ? `${item["letterboxd:filmYear"]}` : undefined,
             ratingValue: numericRating,
             ratingDisplay: formatStars(numericRating),
             link: item.link || `https://letterboxd.com/${LETTERBOXD_USER}`,
-            pubDate: watchDate,
-            isFavorite: isFav
-          };
-
-          allFilms.push(entry);
-          if (isFav) profileFavorites.push(entry);
+            imageUrl: poster,
+            pubDate: watchDate
+          });
         }
       }
     }
   }
-
-  // Fallback: check favorites feed endpoint
-  if (profileFavorites.length === 0) {
-    try {
-      const favRes = await fetch(`https://letterboxd.com/${LETTERBOXD_USER}/favorites/rss/?t=${Date.now()}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0' }
-      });
-      if (favRes.ok) {
-        const favXml = await favRes.text();
-        const favParser = new XMLParser({ ignoreAttributes: false, removeNSPrefix: false });
-        const favParsed = favParser.parse(favXml);
-        const favItems = favParsed?.rss?.channel?.item;
-        if (favItems) {
-          const listItems = Array.isArray(favItems) ? favItems : [favItems];
-          profileFavorites = listItems.slice(0, 3).map((item: any) => ({
-            title: item["letterboxd:filmTitle"] || item.title,
-            creatorOrLocation: item["letterboxd:filmYear"] ? `${item["letterboxd:filmYear"]}` : undefined,
-            ratingValue: 5,
-            ratingDisplay: "★★★★★",
-            link: item.link || `https://letterboxd.com/${LETTERBOXD_USER}`
-          }));
-        }
-      }
-    } catch {
-      // Continue silently if unavailable
-    }
-  }
-
 } catch (e) {
-  console.warn("Could not fetch Letterboxd feed.", e);
+  console.warn("Could not fetch Letterboxd diary RSS.", e);
 }
-
-const topFilms = profileFavorites.length > 0 
-  ? profileFavorites.slice(0, 3) 
-  : [...allFilms].sort((a, b) => b.ratingValue - a.ratingValue).slice(0, 3);
 
 const mostRecentFilm = [...allFilms].sort((a, b) => (b.pubDate?.getTime() || 0) - (a.pubDate?.getTime() || 0))[0];
 
 // ==========================================
-// 3. GOODREADS FETCH
+// 3. GOODREADS FETCH (STRICT 5-STAR ONLY)
 // ==========================================
 let allBooks: ShelfEntry[] = [];
 let currentlyReading: ShelfEntry | null = null;
 
 try {
+  // Currently Reading shelf
   const grCurrentRes = await fetch(
     `https://www.goodreads.com/review/list_rss/${GOODREADS_USER_ID}?shelf=currently-reading&t=${Date.now()}`,
     { headers: { 'User-Agent': 'Mozilla/5.0' } }
@@ -160,12 +165,14 @@ try {
           creatorOrLocation: activeBook.author_name ? `by ${activeBook.author_name}` : undefined,
           ratingValue: 0,
           ratingDisplay: "Reading Now",
-          link: activeBook.link || `https://www.goodreads.com/user/show/${GOODREADS_USER_ID}`
+          link: activeBook.link || `https://www.goodreads.com/user/show/${GOODREADS_USER_ID}`,
+          imageUrl: activeBook.book_large_image_url || activeBook.book_image_url || extractPosterFromHtml(activeBook.description || "")
         };
       }
     }
   }
 
+  // Read shelf
   const grReadRes = await fetch(
     `https://www.goodreads.com/review/list_rss/${GOODREADS_USER_ID}?shelf=read&t=${Date.now()}`,
     { headers: { 'User-Agent': 'Mozilla/5.0' } }
@@ -186,6 +193,7 @@ try {
           ratingValue: score,
           ratingDisplay: score > 0 ? "★".repeat(score) : "Read",
           link: item.link || `https://www.goodreads.com/user/show/${GOODREADS_USER_ID}`,
+          imageUrl: item.book_large_image_url || item.book_image_url || extractPosterFromHtml(item.description || ""),
           pubDate: item.pubDate ? new Date(item.pubDate) : new Date(0)
         };
       });
@@ -195,36 +203,40 @@ try {
   console.warn("Could not load Goodreads feed.", e);
 }
 
-if (allBooks.length === 0) {
-  allBooks = [
-    { title: "Klara and the Sun", creatorOrLocation: "by Kazuo Ishiguro", ratingValue: 5, ratingDisplay: "★★★★★", link: "https://www.goodreads.com", pubDate: new Date("2024-02-15") }
-  ];
-}
+// Only keep 5-star books (up to 4)
+const topBooks = allBooks
+  .filter((b) => b.ratingValue === 5)
+  .slice(0, 4);
 
-const topBook = [...allBooks].sort((a, b) => b.ratingValue - a.ratingValue)[0];
 const mostRecentBook = currentlyReading || [...allBooks].sort((a, b) => (b.pubDate?.getTime() || 0) - (a.pubDate?.getTime() || 0))[0];
 
 // ==========================================
-// 4. RESTAURANTS & GAMES (shelf.json)
+// 4. RESTAURANTS & MUSIC (shelf.json)
 // ==========================================
 const sortedRestaurants = [...(shelfData.restaurants || [])].sort((a, b) => b.rating - a.rating);
-const topRestaurants = sortedRestaurants.slice(0, 3);
+const topRestaurants = sortedRestaurants.slice(0, 4);
 
 const mostRecentRestaurant = [...(shelfData.restaurants || [])].sort(
   (a, b) => new Date(b.date || "1970-01-01").getTime() - new Date(a.date || "1970-01-01").getTime()
 )[0];
+
+const favoriteMusic = (shelfData as any).music || [
+  { album: "Alvvays", artist: "Alvvays", year: "2014", link: "https://open.spotify.com/album/1K6TvnkvmnLKPhifmPb6N7?si=d5C4xduQQWaFzZXNNLrMLQ", imageUrl: "https://upload.wikimedia.org/wikipedia/en/5/5e/Alvvays_2014.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail_unscaled" },
+  { album: "Songs of Her's", artist: "Her's", year: "2017", link: "https://open.spotify.com/album/03gwRG5IvkStFnjPmgjElw?si=r7G8UT75QqaNAIXWMAc8Yw", imageUrl: "https://upload.wikimedia.org/wikipedia/en/1/15/SongsOfHers.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail_unscaled" },
+  { album: "Melophobia", artist: "Cage the Elephant", year: "2017", link: "https://open.spotify.com/album/4EK8gtQfdVsmDTji7gBFlz?si=4ypHCztHQhGWSYw_JfBCCg", imageUrl: "https://upload.wikimedia.org/wikipedia/en/1/1e/Cage_the_Elephant_Melophobia.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail_unscaled" },
+  { album: "Gana Sagaram (Live at Sri Krishna Gana Sabha, August - 1984)", artist: " Lalgudi G. Jayaraman, Lalgudi G.J.R. Krishnan, Trichy Sankaran", year: "2018", link: "https://open.spotify.com/album/7KFHoMwR6cytZbF8ewoYFP?si=PanU_5bRTce7VH5g4zZJpQ", imageUrl: "https://c.saavncdn.com/370/Gana-Sagaram-Live-at-Sri-Krishna-Gana-Sabha-August-1984--Tamil-2018-20180821224829-500x500.jpg" }
+];
 ---
 
-<BaseLayout title="My Shelf" description="Favorites, media logs, and daily pursuits.">
+<BaseLayout title="Random" description="Favorites, media logs, and daily pursuits.">
   <!-- Page Header -->
   <section class="mb-12">
     <h1 class="font-serif text-4xl sm:text-5xl font-bold tracking-tight text-primary mb-3">
-      My Shelf
+      Random
     </h1>
     <p class="font-serif italic text-muted text-base leading-relaxed mb-2">
-      I like tracking things.
+      Some things I like to track. My favorites (01), my latest (02), and my streaks (3).
       <a href="#fn-1" class="text-accent font-mono text-[11px] hover:underline"> [1]</a>
-
     </p>
 
     <!-- Outward Platform Links -->
@@ -255,178 +267,381 @@ const mostRecentRestaurant = [...(shelfData.restaurants || [])].sort(
       >
         beli ↗
       </a>
+      <span class="text-muted/40">|</span>
+      <a 
+        href="https://open.spotify.com/user/uos4rs1df4gkyihyfn4f6pl5x?si=4a61bbf99d2b4585" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        class="text-accent hover:underline hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+      >
+        spotify ↗
+      </a>
     </div>
   </section>
 
   <div class="space-y-16">
 
-    <!-- SECTION 01: ALL-TIME FAVORITES -->
-    <section>
-      <div class="flex items-baseline space-x-2 border-b border-surface pb-3 mb-8">
-        <h2 class="font-serif text-2xl font-semibold text-primary">
-          Favorites
-        </h2>
+    <!-- ==========================================
+         SECTION 01: FAVORITES
+         ========================================== -->
+    <section class="space-y-12">
+      <div class="flex items-baseline space-x-2 border-b border-surface pb-3">
+        <h2 class="font-serif text-2xl font-semibold text-primary">Favorites</h2>
         <span class="text-accent font-mono text-sm">/ 01</span>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        <!-- Top 1 Book -->
-        <div class="bg-surface/30 border border-surface rounded-xl p-5 flex flex-col justify-between space-y-4">
-          <div class="flex items-baseline justify-between border-b border-surface/70 pb-2">
-            <h3 class="font-serif font-semibold text-primary text-base">Book</h3>
-            <span class="font-mono text-[10px] text-muted uppercase tracking-wider">Top 1</span>
+      <!-- Subsection 1.1: Books -->
+      <div class="space-y-3">
+        <div class="flex items-baseline justify-between border-b border-surface/60 pb-2">
+          <h3 class="font-serif text-lg font-medium text-primary">Books</h3>
+          <span class="font-mono text-[10px] text-muted uppercase tracking-wider"></span>
+        </div>
+
+        <div class="pt-3 pb-2">
+          <div class="flex items-end justify-start gap-4 sm:gap-6 overflow-x-auto pb-0 px-2 select-none scrollbar-none">
+            {topBooks.map((book, idx) => (
+              <a 
+                href={book.link} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                class="group relative flex-shrink-0 transition-all duration-300 hover:-translate-y-2.5 focus:outline-none"
+              >
+                <div class="relative w-28 sm:w-32 h-44 sm:h-48 bg-[#EDE7DF] rounded-[2px] shadow-sm group-hover:shadow-md border border-[#D5CCC0] overflow-hidden transition-shadow">
+                  <div class="absolute inset-y-0 left-0 w-2.5 bg-gradient-to-r from-black/15 via-black/5 to-transparent z-10 pointer-events-none"></div>
+                  {book.imageUrl ? (
+                    <img src={book.imageUrl} alt={book.title} class="w-full h-full object-cover" loading="lazy" />
+                  ) : (
+                    <div class="p-3 h-full flex flex-col justify-between font-serif">
+                      <span class="text-[9px] font-mono text-accent">#{idx + 1}</span>
+                      <p class="text-[11px] leading-tight text-primary font-medium line-clamp-3">{book.title}</p>
+                      <span class="text-[9px] font-mono text-muted">{book.ratingDisplay}</span>
+                    </div>
+                  )}
+                  <!-- Hover Details -->
+                  <div class="absolute inset-0 bg-[#2B2826]/90 text-[#FAF8F5] p-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between z-20 pointer-events-none">
+                    <span class="font-mono text-[8px] text-accent uppercase tracking-widest">Selected #{idx + 1}</span>
+                    <p class="font-serif text-xs font-medium leading-snug line-clamp-3">{book.title}</p>
+                    <div class="flex items-baseline justify-between font-mono text-[9px]">
+                      <span class="text-[#FAF8F5]/80 line-clamp-1">{book.creatorOrLocation}</span>
+                      <span class="text-accent">{book.ratingDisplay}</span>
+                    </div>
+                  </div>
+                </div>
+                <span class="block text-center font-mono text-[9px] text-muted group-hover:text-accent group-hover:text-[#B4383B] transition-colors mt-2">
+                  0{idx + 1}
+                </span>
+              </a>
+            ))}
           </div>
-          {topBook && (
-            <a href={topBook.link} target="_blank" rel="noopener noreferrer" class="group block text-xs space-y-1 my-auto">
-              <div class="flex items-baseline justify-between">
-                <span class="font-serif font-medium text-primary text-sm group-hover:text-accent group-hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200 line-clamp-2">{topBook.title}</span>
-                <span class="font-mono text-xs text-accent shrink-0 ml-2">{topBook.ratingDisplay}</span>
+          <div class="h-1.5 bg-[#DDD5CA] border-t border-b border-[#CBC1B4] rounded-[1px] mt-2"></div>
+          <div class="h-3 bg-gradient-to-b from-[#DDD5CA]/40 to-transparent"></div>
+        </div>
+      </div>
+
+      <!-- Subsection 1.2: Movies -->
+      <div class="space-y-3">
+        <div class="flex items-baseline justify-between border-b border-surface/60 pb-2">
+          <h3 class="font-serif text-lg font-medium text-primary">Movies</h3>
+          <span class="font-mono text-[10px] text-muted uppercase tracking-wider"></span>
+        </div>
+
+        <div class="pt-3 pb-2">
+          <div class="flex items-end justify-start gap-4 sm:gap-6 overflow-x-auto pb-0 px-2 select-none scrollbar-none">
+            {topFilms.map((film, idx) => (
+              <a 
+                href={film.link} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                class="group relative flex-shrink-0 transition-all duration-300 hover:-translate-y-2.5 focus:outline-none"
+              >
+                <div class="relative w-28 sm:w-32 h-44 sm:h-48 bg-[#EDE7DF] rounded-[2px] shadow-sm group-hover:shadow-md border border-[#D5CCC0] overflow-hidden transition-shadow">
+                  {film.imageUrl ? (
+                    <img src={film.imageUrl} alt={film.title} class="w-full h-full object-cover" loading="lazy" />
+                  ) : (
+                    <div class="p-3 h-full flex flex-col justify-between font-serif">
+                      <span class="text-[9px] font-mono text-accent">#{idx + 1}</span>
+                      <p class="text-[11px] leading-tight text-primary font-medium line-clamp-3">{film.title}</p>
+                      <span class="text-[9px] font-mono text-muted">{film.ratingDisplay}</span>
+                    </div>
+                  )}
+                  <!-- Hover Details -->
+                  <div class="absolute inset-0 bg-[#2B2826]/90 text-[#FAF8F5] p-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between z-20 pointer-events-none">
+                    <span class="font-mono text-[8px] text-accent uppercase tracking-widest">Favorite #{idx + 1}</span>
+                    <p class="font-serif text-xs font-medium leading-snug line-clamp-3">{film.title}</p>
+                    <div class="flex items-baseline justify-between font-mono text-[9px]">
+                      <span class="text-[#FAF8F5]/80">{film.creatorOrLocation || "Film"}</span>
+                      <span class="text-accent">{film.ratingDisplay}</span>
+                    </div>
+                  </div>
+                </div>
+                <span class="block text-center font-mono text-[9px] text-muted group-hover:text-accent group-hover:text-[#B4383B] transition-colors mt-2">
+                  0{idx + 1}
+                </span>
+              </a>
+            ))}
+          </div>
+          <div class="h-1.5 bg-[#DDD5CA] border-t border-b border-[#CBC1B4] rounded-[1px] mt-2"></div>
+          <div class="h-3 bg-gradient-to-b from-[#DDD5CA]/40 to-transparent"></div>
+        </div>
+      </div>
+
+      <!-- Subsection 1.3: Music (Vinyl Shelf - placed BEFORE Food) -->
+      <div class="space-y-3">
+        <div class="flex items-baseline justify-between border-b border-surface/60 pb-2">
+          <h3 class="font-serif text-lg font-medium text-primary">Music</h3>
+          <span class="font-mono text-[10px] text-muted uppercase tracking-wider"></span>
+        </div>
+
+        <div class="pt-3 pb-2">
+          <div class="flex items-end justify-start gap-4 sm:gap-6 overflow-x-auto pb-0 px-2 select-none scrollbar-none">
+            {favoriteMusic.map((album: any, idx: number) => (
+              <a 
+                href={album.link} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                class="group relative flex-shrink-0 transition-all duration-300 hover:-translate-y-2.5 focus:outline-none"
+              >
+                <!-- Vinyl Sleeve (Square aspect-ratio) -->
+                <div class="relative w-32 sm:w-36 h-32 sm:h-36 bg-[#EDE7DF] rounded-[2px] shadow-sm group-hover:shadow-md border border-[#D5CCC0] overflow-hidden transition-shadow">
+                  {album.imageUrl ? (
+                    <img src={album.imageUrl} alt={album.album} class="w-full h-full object-cover" loading="lazy" />
+                  ) : (
+                    <div class="p-3 h-full flex flex-col justify-between font-serif">
+                      <span class="text-[9px] font-mono text-accent">0{idx + 1}</span>
+                      <p class="text-[11px] leading-tight text-primary font-medium line-clamp-2">{album.album}</p>
+                      <span class="text-[9px] font-mono text-muted">{album.artist}</span>
+                    </div>
+                  )}
+                  <!-- Hover Details -->
+                  <div class="absolute inset-0 bg-[#2B2826]/90 text-[#FAF8F5] p-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between z-20 pointer-events-none">
+                    <span class="font-mono text-[8px] text-accent uppercase tracking-widest">Album #{idx + 1}</span>
+                    <div>
+                      <p class="font-serif text-xs font-medium leading-snug line-clamp-2">{album.album}</p>
+                      <p class="font-mono text-[9px] text-[#FAF8F5]/80 mt-0.5">{album.artist}</p>
+                    </div>
+                    <span class="font-mono text-[9px] text-accent">{album.year}</span>
+                  </div>
+                </div>
+                <span class="block text-center font-mono text-[9px] text-muted group-hover:text-accent group-hover:text-[#B4383B] transition-colors mt-2">
+                  0{idx + 1}
+                </span>
+              </a>
+            ))}
+          </div>
+          <div class="h-1.5 bg-[#DDD5CA] border-t border-b border-[#CBC1B4] rounded-[1px] mt-2"></div>
+          <div class="h-3 bg-gradient-to-b from-[#DDD5CA]/40 to-transparent"></div>
+        </div>
+      </div>
+
+      <!-- Subsection 1.4: Food -->
+      <div class="space-y-3">
+        <div class="flex items-baseline justify-between border-b border-surface/60 pb-2">
+          <div class="flex items-baseline space-x-1">
+            <h3 class="font-serif text-lg font-medium text-primary">Food</h3>
+            <a href="#fn-2" class="text-accent font-mono text-[11px] hover:underline">[2]</a>
+          </div>
+          <span class="font-mono text-[10px] text-muted uppercase tracking-wider"></span>
+        </div>
+
+        <div class="pt-3 pb-2">
+          <div class="flex items-end justify-start gap-4 sm:gap-6 overflow-x-auto pb-0 px-2 select-none scrollbar-none">
+            {topRestaurants.map((spot, idx) => (
+              <div 
+                class="group relative flex-shrink-0 transition-all duration-300 hover:-translate-y-2.5 cursor-default"
+              >
+                <div class="w-24 sm:w-28 h-36 sm:h-40 bg-[#FAF8F5] border border-[#D5CCC0] rounded-[2px] p-3 flex flex-col justify-between shadow-sm group-hover:shadow-md transition-shadow relative">
+                  <div class="border-b border-dashed border-[#D5CCC0]/80 pb-1 flex items-center justify-between">
+                    <span class="font-mono text-[8px] text-accent font-semibold uppercase tracking-wider">{spot.city}</span>
+                    <span class="font-mono text-[8px] text-muted">no. 0{idx + 1}</span>
+                  </div>
+                  <p class="font-serif text-xs font-semibold text-primary leading-tight line-clamp-3 my-auto">
+                    {spot.name}
+                  </p>
+                  <div class="border-t border-[#D5CCC0]/60 pt-1 flex items-baseline justify-between">
+                    <span class="font-mono text-[8px] text-muted line-clamp-1">{spot.tag}</span>
+                    <span class="font-mono text-[9px] font-semibold text-accent">{spot.rating}</span>
+                  </div>
+
+                  <div class="absolute inset-0 bg-[#2B2826]/90 text-[#FAF8F5] p-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between z-20 pointer-events-none rounded-[2px]">
+                    <span class="font-mono text-[8px] text-accent uppercase tracking-widest">{spot.city} · {spot.tag}</span>
+                    <p class="font-serif text-xs font-medium leading-snug">{spot.name}</p>
+                    <div class="font-mono text-[9px] text-accent font-semibold text-right">
+                      Score: {spot.rating} / 10
+                    </div>
+                  </div>
+                </div>
+                <span class="block text-center font-mono text-[9px] text-muted group-hover:text-accent group-hover:text-[#B4383B] transition-colors mt-2">
+                  0{idx + 1}
+                </span>
               </div>
-              {topBook.creatorOrLocation && <p class="text-xs text-muted">{topBook.creatorOrLocation}</p>}
+            ))}
+          </div>
+          <div class="h-1.5 bg-[#DDD5CA] border-t border-b border-[#CBC1B4] rounded-[1px] mt-2"></div>
+          <div class="h-3 bg-gradient-to-b from-[#DDD5CA]/40 to-transparent"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==========================================
+         SECTION 02: LATEST
+         ========================================== -->
+    <section class="space-y-4">
+      <div class="flex items-baseline justify-between border-b border-surface pb-3">
+        <div class="flex items-baseline space-x-2">
+          <h2 class="font-serif text-2xl font-semibold text-primary">Latest</h2>
+          <span class="text-accent font-mono text-sm">/ 02</span>
+        </div>
+        <span class="font-mono text-[10px] text-muted uppercase tracking-wider"></span>
+      </div>
+
+      <div class="pt-4 pb-2">
+        <div class="flex items-end justify-start gap-6 overflow-x-auto pb-0 px-2 select-none scrollbar-none">
+          
+          <!-- CURRENT / LATEST BOOK -->
+          {mostRecentBook && (
+            <a 
+              href={mostRecentBook.link} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="group relative flex-shrink-0 transition-all duration-300 hover:-translate-y-2.5 focus:outline-none"
+            >
+              <div class="relative w-28 sm:w-32 h-44 sm:h-48 bg-[#EDE7DF] rounded-[2px] shadow-sm group-hover:shadow-md border border-[#D5CCC0] overflow-hidden transition-shadow">
+                <div class="absolute inset-y-0 left-0 w-2.5 bg-gradient-to-r from-black/15 via-black/5 to-transparent z-10 pointer-events-none"></div>
+                {mostRecentBook.imageUrl ? (
+                  <img src={mostRecentBook.imageUrl} alt={mostRecentBook.title} class="w-full h-full object-cover" loading="lazy" />
+                ) : (
+                  <div class="p-3 h-full flex flex-col justify-between font-serif">
+                    <span class="text-[9px] font-mono text-accent">{currentlyReading ? "CURRENT" : "LATEST"}</span>
+                    <p class="text-[11px] leading-tight text-primary font-medium line-clamp-3">{mostRecentBook.title}</p>
+                    <span class="text-[9px] font-mono text-muted">{mostRecentBook.ratingDisplay}</span>
+                  </div>
+                )}
+                <div class="absolute inset-0 bg-[#2B2826]/90 text-[#FAF8F5] p-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between z-20 pointer-events-none">
+                  <span class="font-mono text-[8px] text-accent uppercase tracking-widest">{currentlyReading ? "Reading Now" : "Latest Book"}</span>
+                  <p class="font-serif text-xs font-medium leading-tight line-clamp-3">{mostRecentBook.title}</p>
+                  <p class="font-mono text-[9px] text-[#FAF8F5]/80">{mostRecentBook.creatorOrLocation}</p>
+                </div>
+              </div>
+              <span class="block text-center font-mono text-[9px] text-muted group-hover:text-accent group-hover:text-[#B4383B] transition-colors mt-2">
+                currently reading
+              </span>
             </a>
           )}
-        </div>
 
-        <!-- Top Films -->
-        <div class="bg-surface/30 border border-surface rounded-xl p-5 space-y-4">
-          <div class="flex items-baseline justify-between border-b border-surface/70 pb-2">
-            <h3 class="font-serif font-semibold text-primary text-base">Cinema</h3>
-            <span class="font-mono text-[10px] text-muted uppercase tracking-wider">Top 3</span>
-          </div>
-          <div class="space-y-3">
-            {topFilms.map((f) => (
-              <a href={f.link} target="_blank" rel="noopener noreferrer" class="group block text-xs space-y-0.5">
-                <div class="flex items-baseline justify-between">
-                  <span class="font-serif font-medium text-primary group-hover:text-accent group-hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200 line-clamp-1">{f.title}</span>
-                  <span class="font-mono text-[11px] text-accent shrink-0 ml-2">{f.ratingDisplay}</span>
+          <!-- LAST WATCHED FILM -->
+          {mostRecentFilm && (
+            <a 
+              href={mostRecentFilm.link} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="group relative flex-shrink-0 transition-all duration-300 hover:-translate-y-2.5 focus:outline-none"
+            >
+              <div class="relative w-28 sm:w-32 h-44 sm:h-48 bg-[#EDE7DF] rounded-[2px] shadow-sm group-hover:shadow-md border border-[#D5CCC0] overflow-hidden transition-shadow">
+                {mostRecentFilm.imageUrl ? (
+                  <img src={mostRecentFilm.imageUrl} alt={mostRecentFilm.title} class="w-full h-full object-cover" loading="lazy" />
+                ) : (
+                  <div class="p-3 h-full flex flex-col justify-between font-serif">
+                    <span class="text-[9px] font-mono text-accent">LAST WATCHED</span>
+                    <p class="text-[11px] leading-tight text-primary font-medium line-clamp-3">{mostRecentFilm.title}</p>
+                    <span class="text-[9px] font-mono text-muted">{mostRecentFilm.ratingDisplay}</span>
+                  </div>
+                )}
+                <div class="absolute inset-0 bg-[#2B2826]/90 text-[#FAF8F5] p-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between z-20 pointer-events-none">
+                  <span class="font-mono text-[8px] text-accent uppercase tracking-widest">Last Watched</span>
+                  <p class="font-serif text-xs font-medium leading-tight line-clamp-3">{mostRecentFilm.title}</p>
+                  <div class="flex items-baseline justify-between font-mono text-[9px]">
+                    <span class="text-[#FAF8F5]/80">{mostRecentFilm.creatorOrLocation || "Film"}</span>
+                    <span class="text-accent">{mostRecentFilm.ratingDisplay}</span>
+                  </div>
                 </div>
-                {f.creatorOrLocation && <p class="text-[11px] text-muted">{f.creatorOrLocation}</p>}
-              </a>
-            ))}
-          </div>
-        </div>
-
-        <!-- Top Restaurants -->
-        <div class="bg-surface/30 border border-surface rounded-xl p-5 space-y-4">
-          <div class="flex items-baseline justify-between border-b border-surface/70 pb-2">
-            <div class="flex items-baseline space-x-1">
-              <h3 class="font-serif font-semibold text-primary text-base">Dining</h3>
-              <a href="#fn-1" class="text-accent font-mono text-[11px] hover:underline">[2]</a>
-            </div>
-            <span class="font-mono text-[10px] text-muted uppercase tracking-wider">Top 3</span>
-          </div>
-          <div class="space-y-3">
-            {topRestaurants.map((r) => (
-              <div class="text-xs space-y-0.5">
-                <div class="flex items-baseline justify-between">
-                  <span class="font-serif font-medium text-primary line-clamp-1">{r.name}</span>
-                  <span class="font-mono text-[11px] font-semibold text-accent shrink-0 ml-2">{r.rating}</span>
-                </div>
-                <p class="text-[11px] text-muted">{r.city} · {r.tag}</p>
               </div>
-            ))}
-          </div>
+              <span class="block text-center font-mono text-[9px] text-muted group-hover:text-accent group-hover:text-[#B4383B] transition-colors mt-2">
+                last watched
+              </span>
+            </a>
+          )}
+
+          <!-- LAST ATE RESTAURANT -->
+          {mostRecentRestaurant && (
+            <div class="group relative flex-shrink-0 transition-all duration-300 hover:-translate-y-2.5 cursor-default">
+              <div class="w-24 sm:w-28 h-36 sm:h-40 bg-[#FAF8F5] border border-[#D5CCC0] rounded-[2px] p-3 flex flex-col justify-between shadow-sm group-hover:shadow-md transition-shadow relative">
+                <div class="border-b border-dashed border-[#D5CCC0]/80 pb-1 flex items-center justify-between">
+                  <span class="font-mono text-[8px] text-accent font-semibold uppercase tracking-wider">{mostRecentRestaurant.city}</span>
+                  <span class="font-mono text-[8px] text-muted">latest</span>
+                </div>
+                <p class="font-serif text-xs font-semibold text-primary leading-tight line-clamp-3 my-auto">
+                  {mostRecentRestaurant.name}
+                </p>
+                <div class="border-t border-[#D5CCC0]/60 pt-1 flex items-baseline justify-between">
+                  <span class="font-mono text-[8px] text-muted truncate">{mostRecentRestaurant.tag}</span>
+                  <span class="font-mono text-[9px] font-semibold text-accent">{mostRecentRestaurant.rating}</span>
+                </div>
+              </div>
+              <span class="block text-center font-mono text-[9px] text-muted group-hover:text-accent group-hover:text-[#B4383B] transition-colors mt-2">
+                last ate
+              </span>
+            </div>
+          )}
+
         </div>
 
+        <!-- Shelf Plank -->
+        <div class="h-1.5 bg-[#DDD5CA] border-t border-b border-[#CBC1B4] rounded-[1px] mt-2"></div>
+        <div class="h-3 bg-gradient-to-b from-[#DDD5CA]/40 to-transparent"></div>
       </div>
     </section>
 
-    <!-- SECTION 02: RECENTLY RATED & CURRENT READING -->
-    <section>
-      <div class="flex items-baseline space-x-2 border-b border-surface pb-3 mb-8">
-        <h2 class="font-serif text-2xl font-semibold text-primary">
-          Recently Rated
-        </h2>
-        <span class="text-accent font-mono text-sm">/ 02</span>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        
-        <!-- Latest Book -->
-        {mostRecentBook && (
-          <div class="border border-surface/80 rounded-xl p-4 bg-surface/20 flex flex-col justify-between space-y-3">
-            <div>
-              <span class="font-mono text-[10px] text-muted uppercase tracking-wider block mb-1">
-                {currentlyReading ? "Currently Reading" : "Latest Book"}
-              </span>
-              <a href={mostRecentBook.link} target="_blank" rel="noopener noreferrer" class="group">
-                <h3 class="font-serif font-semibold text-sm text-primary group-hover:text-accent group-hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200 line-clamp-2">
-                  {mostRecentBook.title}
-                </h3>
-              </a>
-              {mostRecentBook.creatorOrLocation && (
-                <p class="text-xs text-muted mt-0.5">{mostRecentBook.creatorOrLocation}</p>
-              )}
-            </div>
-            <div class="font-mono text-xs text-accent">
-              {mostRecentBook.ratingDisplay}
-            </div>
-          </div>
-        )}
-
-        <!-- Latest Film -->
-        {mostRecentFilm && (
-          <div class="border border-surface/80 rounded-xl p-4 bg-surface/20 flex flex-col justify-between space-y-3">
-            <div>
-              <span class="font-mono text-[10px] text-muted uppercase tracking-wider block mb-1">
-                Latest Film Logged
-              </span>
-              <a href={mostRecentFilm.link} target="_blank" rel="noopener noreferrer" class="group">
-                <h3 class="font-serif font-semibold text-sm text-primary group-hover:text-accent group-hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200 line-clamp-2">
-                  {mostRecentFilm.title}
-                </h3>
-              </a>
-              {mostRecentFilm.creatorOrLocation && (
-                <p class="text-xs text-muted mt-0.5">{mostRecentFilm.creatorOrLocation}</p>
-              )}
-            </div>
-            <div class="font-mono text-xs text-accent">
-              {mostRecentFilm.ratingDisplay}
-            </div>
-          </div>
-        )}
-
-        <!-- Latest Restaurant -->
-        {mostRecentRestaurant && (
-          <div class="border border-surface/80 rounded-xl p-4 bg-surface/20 flex flex-col justify-between space-y-3">
-            <div>
-              <span class="font-mono text-[10px] text-muted uppercase tracking-wider block mb-1">
-                Latest Beli Spot
-              </span>
-              <h3 class="font-serif font-semibold text-sm text-primary line-clamp-1">
-                {mostRecentRestaurant.name}
-              </h3>
-              <p class="text-xs text-muted mt-0.5">
-                {mostRecentRestaurant.city} · {mostRecentRestaurant.tag}
-              </p>
-            </div>
-            <div class="font-mono text-xs font-semibold text-accent">
-              {mostRecentRestaurant.rating} / 10
-            </div>
-          </div>
-        )}
-
-      </div>
-    </section>
-
-    <!-- SECTION 03: DAILY PUZZLE STREAKS -->
-    <section>
-      <div class="flex items-baseline space-x-2 border-b border-surface pb-3 mb-6">
-        <h2 class="font-serif text-2xl font-semibold text-primary">
-          Streaks 
-        </h2>
+    {/* ==========================================
+        SECTION 03: PLACES (COMMENTED OUT FOR NOW)
+        ==========================================
+    <section class="space-y-4">
+      <div class="flex items-baseline space-x-2 border-b border-surface pb-3">
+        <h2 class="font-serif text-2xl font-semibold text-primary">Places</h2>
         <span class="text-accent font-mono text-sm">/ 03</span>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {(shelfData.games || []).map((game) => (
-          <div class="bg-surface/30 border border-surface rounded-lg p-3.5 space-y-1">
-            <h3 class="font-serif text-sm font-semibold text-primary">
-              {game.name}
-            </h3>
-            <div class="font-mono text-xs text-accent">{game.streak}</div>
-            <div class="font-mono text-[10px] text-muted">best: {game.best}</div>
+      <TravelMap places={travelData.places || shelfData.places || []} />
+    </section>
+    */}
+
+    <!-- ==========================================
+         SECTION 03: STREAKS & PURSUITS (MANILA ARCHIVE FOLDERS)
+         ========================================== -->
+    <section class="space-y-4">
+      <div class="flex items-baseline justify-between border-b border-surface pb-3">
+        <div class="flex items-baseline space-x-2">
+          <h2 class="font-serif text-2xl font-semibold text-primary">Others</h2>
+          <span class="text-accent font-mono text-sm">/ 03</span>
+        </div>
+        <span class="font-mono text-[10px] text-muted uppercase tracking-wider"></span>
+      </div>
+
+      <!-- File Folder Cards Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+        {(shelfData.games || []).map((game, idx) => (
+          <div class="group relative bg-[#F5EFEB] border border-[#D8CFC4] rounded-t-sm rounded-b-md p-4 pt-3 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-1">
+            <div class="absolute -top-3 left-3 bg-[#E8DEC8] border-t border-l border-r border-[#D8CFC4] px-2.5 py-0.5 rounded-t font-mono text-[8px] text-[#7A6A53] tracking-widest uppercase">
+              -----
+            </div>
+
+            <div class="flex items-baseline justify-between border-b border-dashed border-[#D8CFC4] pb-2 pt-1">
+              <h3 class="font-serif text-sm font-semibold text-primary group-hover:text-accent group-hover:text-[#B4383B] transition-colors">
+                {game.name}
+              </h3>
+              <span class="font-mono text-[9px] text-[#A6998A] uppercase">Active</span>
+            </div>
+
+            <div class="mt-3 flex items-baseline justify-between">
+              <div>
+                <span class="font-mono text-[8px] text-muted uppercase tracking-wider block">Current</span>
+                <span class="font-mono text-lg font-bold text-accent">{game.streak}</span>
+              </div>
+              <div class="text-right">
+                <span class="font-mono text-[8px] text-muted uppercase tracking-wider block">Best Record</span>
+                <span class="font-mono text-xs text-primary font-medium">{game.best}</span>
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -436,11 +651,11 @@ const mostRecentRestaurant = [...(shelfData.restaurants || [])].sort(
     <section class="pt-8 border-t border-surface/70 space-y-2 text-xs font-sans text-muted">
       <p id="fn-1">
         <span class="font-mono text-accent text-[11px] mr-1">[1]</span>
-        <span class="italic">Books and films are pulled from Goodreads and Letterboxd RSS feeds; foods and streaks are pulled from a JSON with manually exported Beli data.</span>
+        <span class="italic">Latest books and films are pulled from Goodreads and Letterboxd RSS feeds; favorites, foods, music, streaks are pulled from JSON files with exported Beli data and manual lists.</span>
       </p>
-      <p id="fn-2>
-        <span class="font-mono text-accent text-[11px] mr-1">[2]
-        <span class="italic"> Thanks Anushka for taking me to literally all of these</span>
+      <p id="fn-2">
+        <span class="font-mono text-accent text-[11px] mr-1">[2]</span>
+        <span class="italic">Thanks Anushka for taking me to literally all of these</span>
       </p>
     </section>
 

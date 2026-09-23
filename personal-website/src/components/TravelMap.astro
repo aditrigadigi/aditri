@@ -1,0 +1,160 @@
+---
+import * as d3 from 'd3-geo';
+import * as topojson from 'topojson-client';
+import worldData from 'world-atlas/countries-110m.json';
+
+interface Place {
+  name: string;
+  coords: [number, number]; // [longitude, latitude]
+  year?: string | number;
+}
+
+interface Props {
+  places?: Place[];
+}
+
+const { places = [] } = Astro.props;
+
+// SVG Dimensions & Natural Earth Projection
+const width = 800;
+const height = 440;
+const projection = d3.geoNaturalEarth1().fitSize([width, height], { type: "Sphere" });
+const pathGenerator = d3.geoPath().projection(projection);
+
+// TopoJSON -> GeoJSON
+const land = topojson.feature(worldData, worldData.objects.land as any);
+const landPath = pathGenerator(land) || "";
+
+// Pre-project pins server-side for initial render
+const projectedPins = places.map((place) => {
+  const [x, y] = projection(place.coords) || [0, 0];
+  return { ...place, x, y };
+});
+---
+
+<div class="space-y-2">
+  <!-- Controls toolbar (minimalist, no outer box) -->
+  <div class="flex items-center justify-end space-x-3 pb-1">
+    <span class="font-mono text-[10px] text-muted">{places.length} locations</span>
+    <div class="flex items-center space-x-1 border border-surface rounded-md px-1.5 py-0.5 bg-surface/40 font-mono text-xs">
+      <button id="zoom-in" class="px-1 text-muted hover:text-accent transition-colors" title="Zoom in">+</button>
+      <span class="text-surface/80">|</span>
+      <button id="zoom-out" class="px-1 text-muted hover:text-accent transition-colors" title="Zoom out">−</button>
+      <span class="text-surface/80">|</span>
+      <button id="zoom-reset" class="px-1 text-[10px] text-muted hover:text-accent transition-colors" title="Reset view">↺</button>
+    </div>
+  </div>
+
+  <!-- Interactive Map Canvas Container (clean border, no heavy outer card) -->
+  <div class="relative w-full overflow-hidden rounded-lg bg-[#FAF8F5] border border-surface/60 cursor-grab active:cursor-grabbing select-none" id="map-viewport">
+    
+    <svg 
+      id="travel-svg"
+      viewBox={`0 0 ${width} ${height}`} 
+      class="w-full h-auto block"
+    >
+      <g id="map-zoom-layer">
+        <rect width={width} height={height} class="fill-transparent" />
+
+        <!-- World Landmass -->
+        <path 
+          d={landPath} 
+          class="fill-[#E8E2D9] stroke-[#D5CCC0] stroke-[0.6]" 
+        />
+
+        <!-- Pins -->
+        {projectedPins.map((pin) => (
+          <g 
+            class="place-pin cursor-pointer group" 
+            data-name={pin.name} 
+            data-year={pin.year || ""}
+            transform={`translate(${pin.x}, ${pin.y})`}
+          >
+            <circle 
+              r="6" 
+              class="fill-[#B4383B] opacity-20 group-hover:opacity-40 transition-all duration-200" 
+            />
+            <circle 
+              r="2.5" 
+              class="fill-[#B4383B] stroke-[#FAF8F5] stroke-[0.8] group-hover:scale-125 transition-transform duration-200" 
+            />
+          </g>
+        ))}
+      </g>
+    </svg>
+
+    <!-- Floating Tooltip -->
+    <div 
+      id="map-tooltip" 
+      class="pointer-events-none absolute hidden z-20 px-2.5 py-1 rounded-md bg-[#2B2826] text-[#FAF8F5] text-xs font-sans shadow-md -translate-x-1/2 -translate-y-full mb-2 transition-opacity duration-150"
+    >
+      <div class="font-serif font-medium text-xs flex items-center gap-1.5">
+        <span id="tooltip-name"></span>
+        <span id="tooltip-year" class="font-mono text-[10px] text-accent opacity-90"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import * as d3 from 'd3';
+
+  function initMap() {
+    const svg = d3.select('#travel-svg');
+    const zoomLayer = d3.select('#map-zoom-layer');
+    const tooltip = document.getElementById('map-tooltip');
+    const tooltipName = document.getElementById('tooltip-name');
+    const tooltipYear = document.getElementById('tooltip-year');
+    const viewport = document.getElementById('map-viewport');
+
+    if (!svg.node() || !zoomLayer.node() || !viewport) return;
+
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([1, 8])
+      .translateExtent([[0, 0], [800, 440]])
+      .on('zoom', (event) => {
+        zoomLayer.attr('transform', event.transform);
+        if (tooltip) tooltip.classList.add('hidden');
+      });
+
+    svg.call(zoom as any);
+
+    document.getElementById('zoom-in')?.addEventListener('click', () => {
+      svg.transition().duration(300).call((zoom as any).scaleBy, 1.4);
+    });
+    document.getElementById('zoom-out')?.addEventListener('click', () => {
+      svg.transition().duration(300).call((zoom as any).scaleBy, 0.7);
+    });
+    document.getElementById('zoom-reset')?.addEventListener('click', () => {
+      svg.transition().duration(300).call((zoom as any).transform, d3.zoomIdentity);
+    });
+
+    const pins = document.querySelectorAll('.place-pin');
+    pins.forEach((pin) => {
+      pin.addEventListener('mouseenter', (e) => {
+        const target = e.currentTarget as HTMLElement;
+        const name = target.getAttribute('data-name') || '';
+        const year = target.getAttribute('data-year') || '';
+
+        if (tooltip && tooltipName && tooltipYear) {
+          tooltipName.textContent = name;
+          tooltipYear.textContent = year ? `(${year})` : '';
+
+          const rect = target.getBoundingClientRect();
+          const parentRect = viewport.getBoundingClientRect();
+
+          tooltip.style.left = `${rect.left - parentRect.left + rect.width / 2}px`;
+          tooltip.style.top = `${rect.top - parentRect.top - 4}px`;
+          tooltip.classList.remove('hidden');
+        }
+      });
+
+      pin.addEventListener('mouseleave', () => {
+        if (tooltip) tooltip.classList.add('hidden');
+      });
+    });
+  }
+
+  initMap();
+  document.addEventListener('astro:page-load', initMap);
+</script>
