@@ -209,9 +209,8 @@
     ]
   },
   {
-    "city": "Switzerland",
     "country": "Switzerland",
-    "code": "ZRH",
+    "code": "CHE",
     "year": "2025",
     "status": "visited",
     "items": [
