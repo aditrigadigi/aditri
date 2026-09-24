@@ -37,10 +37,9 @@ const projects: Project[] = [
       "Trained a lightweight two-layer MLP token classifier on top of frozen 640-dimensional ESM-2 protein language model embeddings (esm2_t30_150M_UR50D) to predict residue-level secondary structure states (Helix, Strand, Coil). Achieved 80.6% mean accuracy and 0.807 macro F1 across 5-fold cross-validation on curated high-resolution PDB structures. Worked in a team of 5.",
     skills: ["Python", "PyTorch", "ESM-2", "DSSP", "PCA"]
   },
-
   {
     title: "BSCI238I: Machine Learning in the Life Sciences",
-    period: "Aug 2025",
+    period: "2025",
     description:
       "Designed, delivered, and published a curriculum from scratch covering the foundations of machine learning (regression, classification, unsupervised learning, deep learning, CNNs, LLMs) and its applications to the life sciences.",
     skills: ["Machine Learning", "Deep Learning", "CNNs", "LLMs", "Curriculum Design", "Presentation"],
@@ -86,7 +85,7 @@ const projects: Project[] = [
 
 <BaseLayout title="Projects — Aditri Gadigi">
   <!-- Page Header -->
-  <section class="mb-12">
+  <section class="mb-10">
     <h1 class="font-serif text-4xl sm:text-5xl font-bold tracking-tight text-primary mb-3">
       Projects
     </h1>
@@ -95,84 +94,101 @@ const projects: Project[] = [
     </p>
   </section>
 
-  <!-- Single Column Tile List -->
-  <div class="space-y-6">
-    {projects.map((proj) => (
-      <div class="bg-surface/30 border border-surface rounded-xl p-6 sm:p-7 hover:border-accent/40 transition-colors duration-200 flex flex-col justify-between space-y-4">
-        
-        <!-- Header Info -->
-        <div class="space-y-2">
-          <div class="flex flex-wrap items-center justify-between gap-2 font-mono text-xs text-muted">
-            <time>{proj.period}</time>
-            {proj.category && (
-              <span class="px-2 py-0.5 rounded bg-surface text-muted text-[11px] border border-surface">
-                {proj.category}
-              </span>
-            )}
+  <!-- Luggage Tag Accordion Stack -->
+  <div class="divide-y divide-[#E2DBD1] border-y border-[#E2DBD1]">
+    {projects.map((proj, idx) => (
+      <details class="group py-3.5 transition-colors duration-200">
+        <!-- Boarding Pass / Summary Line -->
+        <summary class="flex items-center justify-between cursor-pointer list-none select-none group-hover:text-accent">
+          <div class="flex items-baseline space-x-3 sm:space-x-5 min-w-0 pr-3">
+            <!-- Departure Code Stamp -->
+            <span class="font-mono text-[11px] font-semibold text-accent/80 tracking-wider w-8 shrink-0">
+              0{idx + 1}
+            </span>
+
+            <!-- Project Title & Affiliation/Category -->
+            <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+              <h2 class="font-serif text-base font-semibold text-primary group-hover:text-accent group-hover:text-[#B4383B] transition-colors leading-snug">
+                {proj.title}
+              </h2>
+              {proj.affiliation && (
+                <span class="font-serif italic text-xs text-muted">
+                  {proj.affiliation}
+                </span>
+              )}
+              {proj.category && (
+                <span class="font-mono text-[10px] text-muted/70 uppercase">
+                  [{proj.category}]
+                </span>
+              )}
+            </div>
           </div>
 
-          <div>
-            <h2 class="font-serif text-xl font-semibold text-primary leading-snug">
-              {proj.title}
-            </h2>
-            {proj.affiliation && (
-              <p class="text-sm font-sans text-accent font-medium mt-0.5">
-                {proj.affiliation}
+          <!-- Right Meta: Period & Expansion Glyph -->
+          <div class="flex items-center space-x-3 sm:space-x-6 font-mono text-xs text-muted shrink-0">
+            <span class="hidden sm:inline-block text-[11px]">
+              {proj.period}
+            </span>
+            <span class="text-accent font-mono text-xs group-open:rotate-45 transition-transform duration-200 inline-block">
+              +
+            </span>
+          </div>
+        </summary>
+
+        <!-- Perforated Drawer -->
+        <div class="mt-4 pt-3 pb-2 pl-4 sm:pl-11 border-l-2 border-dashed border-[#DDD5CA] space-y-3.5">
+          <!-- Description & Optional Meta -->
+          <div class="space-y-2.5 text-xs sm:text-sm text-primary/85 leading-relaxed font-sans max-w-3xl">
+            <p>{proj.description}</p>
+
+            {proj.myRole && (
+              <p class="text-xs text-muted leading-relaxed font-sans pt-1 border-t border-surface/60">
+                <strong class="text-primary font-medium">My role:</strong> {proj.myRole}
+              </p>
+            )}
+
+            {proj.collaborators && proj.collaborators.length > 0 && (
+              <p class="text-xs text-muted/70 font-sans">
+                <span>With: {proj.collaborators.join(', ')}</span>
               </p>
             )}
           </div>
-        </div>
 
-        <!-- Description & Role -->
-        <div class="space-y-3 text-sm text-primary/85 leading-relaxed">
-          <p>{proj.description}</p>
-
-          {proj.myRole && (
-            <p class="text-xs text-muted leading-relaxed font-sans pt-1 border-t border-surface/60">
-              <strong class="text-primary font-medium">My role:</strong> {proj.myRole}
-            </p>
+          <!-- Skills List -->
+          {proj.skills && proj.skills.length > 0 && (
+            <div class="flex flex-wrap items-center gap-1.5 font-mono text-[10px] text-muted pt-1">
+              {proj.skills.map((skill, sIdx) => (
+                <>
+                  <span class="bg-surface/50 px-1.5 py-0.5 rounded-[2px] border border-surface/70">
+                    {skill}
+                  </span>
+                </>
+              ))}
+            </div>
           )}
 
-          {proj.collaborators && proj.collaborators.length > 0 && (
-            <p class="text-xs text-muted/70 font-sans">
-              <span>With: {proj.collaborators.join(', ')}</span>
-            </p>
+          <!-- Action Links -->
+          {proj.links && proj.links.length > 0 && (
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs pt-1 border-t border-[#E8E2D9]/80">
+              {proj.links.map((link, lIdx) => (
+                <>
+                  <a 
+                    href={link.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    class="text-accent font-medium hover:underline hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
+                  >
+                    {link.text}
+                  </a>
+                  {lIdx < proj.links.length - 1 && (
+                    <span class="text-muted/40 font-normal">|</span>
+                  )}
+                </>
+              ))}
+            </div>
           )}
         </div>
-
-        <!-- Optional Skills Pills -->
-        {proj.skills && proj.skills.length > 0 && (
-          <div class="flex flex-wrap gap-1.5 pt-1">
-            {proj.skills.map((skill) => (
-              <span class="font-mono text-[11px] px-2 py-0.5 rounded bg-surface text-muted/90 border border-surface/80">
-                {skill}
-              </span>
-            ))}
-          </div>
-        )}
-
-        <!-- Action Links -->
-        {proj.links && proj.links.length > 0 && (
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs pt-2 border-t border-surface/60">
-            {proj.links.map((link, idx) => (
-              <>
-                <a 
-                  href={link.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  class="text-accent font-medium hover:underline hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
-                >
-                  {link.text}
-                </a>
-                {idx < proj.links.length - 1 && (
-                  <span class="text-muted/40 font-normal">|</span>
-                )}
-              </>
-            ))}
-          </div>
-        )}
-
-      </div>
+      </details>
     ))}
   </div>
 </BaseLayout>

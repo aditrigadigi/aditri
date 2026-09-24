@@ -1,5 +1,183 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { XMLParser } from 'fast-xml-parser';
+
+const LETTERBOXD_USER = "aditrigadigi";
+const GOODREADS_USER_ID = "204504937";
+
+interface ShelfEntry {
+  title: string;
+  creatorOrLocation?: string;
+  ratingValue: number;
+  ratingDisplay: string;
+  link: string;
+  imageUrl?: string;
+  pubDate?: Date;
+}
+
+function formatStars(score: number): string {
+  const full = Math.floor(score);
+  const half = score % 1 !== 0;
+  return "★".repeat(full) + (half ? "½" : "");
+}
+
+function extractStarsFromTitle(title: string): { cleanTitle: string; stars?: string; score?: number } {
+  const match = title.match(/^(.*?)(?:,\s*(\d{4}))?\s*-\s*([★½]+)$/);
+  if (match) {
+    const rawStars = match[3];
+    const fullStars = (rawStars.match(/★/g) || []).length;
+    const hasHalf = rawStars.includes('½');
+    const score = fullStars + (hasHalf ? 0.5 : 0);
+    return { cleanTitle: match[1].trim(), stars: rawStars, score };
+  }
+  return { cleanTitle: title };
+}
+
+function extractPosterFromHtml(html: string): string | undefined {
+  if (!html) return undefined;
+  const match = html.match(/<img[^>]+src="([^">]+)"/i);
+  return match ? match[1] : undefined;
+}
+
+// ------------------------------------------
+// 1. FETCH LATEST LETTERBOXD FILM
+// ------------------------------------------
+let latestFilm: ShelfEntry = {
+  title: "The Prestige",
+  creatorOrLocation: "2006",
+  ratingValue: 5,
+  ratingDisplay: "★★★★★",
+  link: `https://letterboxd.com/${LETTERBOXD_USER}`,
+  imageUrl: "https://image.tmdb.org/t/p/w500/tRNlZbgNCNOpLpbPEz5L8G8A0JN.jpg"
+};
+
+try {
+  const lbRes = await fetch(`https://letterboxd.com/${LETTERBOXD_USER}/rss/?t=${Date.now()}`, {
+    headers: { 'User-Agent': 'Mozilla/5.0' }
+  });
+
+  if (lbRes.ok) {
+    const xml = await lbRes.text();
+    const parser = new XMLParser({ ignoreAttributes: false, removeNSPrefix: false });
+    const parsed = parser.parse(xml);
+    const items = parsed?.rss?.channel?.item;
+
+    if (items) {
+      const feedItems = Array.isArray(items) ? items : [items];
+      const validFilms: ShelfEntry[] = [];
+
+      for (const item of feedItems) {
+        const rawTitle = item.title || "";
+        const titleParsed = extractStarsFromTitle(rawTitle);
+
+        let numericRating: number | null = null;
+        if (item["letterboxd:memberRating"] !== undefined) {
+          numericRating = parseFloat(item["letterboxd:memberRating"]);
+        } else if (titleParsed.score !== undefined) {
+          numericRating = titleParsed.score;
+        }
+
+        const dateStr = item["letterboxd:watchedDate"] || item.pubDate;
+        const watchDate = dateStr ? new Date(dateStr) : new Date(0);
+        const poster = extractPosterFromHtml(item.description || "");
+
+        if (numericRating !== null && !isNaN(numericRating) && numericRating > 0) {
+          validFilms.push({
+            title: item["letterboxd:filmTitle"] || titleParsed.cleanTitle,
+            creatorOrLocation: item["letterboxd:filmYear"] ? `${item["letterboxd:filmYear"]}` : undefined,
+            ratingValue: numericRating,
+            ratingDisplay: formatStars(numericRating),
+            link: item.link || `https://letterboxd.com/${LETTERBOXD_USER}`,
+            imageUrl: poster,
+            pubDate: watchDate
+          });
+        }
+      }
+
+      if (validFilms.length > 0) {
+        validFilms.sort((a, b) => (b.pubDate?.getTime() || 0) - (a.pubDate?.getTime() || 0));
+        latestFilm = validFilms[0];
+      }
+    }
+  }
+} catch (e) {
+  console.warn("Could not fetch Letterboxd for index shelf.", e);
+}
+
+// ------------------------------------------
+// 2. FETCH GOODREADS (CURRENT OR LATEST READ)
+// ------------------------------------------
+let latestBook: ShelfEntry = {
+  title: "One Hundred Years of Solitude",
+  creatorOrLocation: "Gabriel García Márquez",
+  ratingValue: 5,
+  ratingDisplay: "Reading Now",
+  link: `https://www.goodreads.com/user/show/${GOODREADS_USER_ID}`,
+  imageUrl: "https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1327881361i/320.jpg"
+};
+
+try {
+  // Try currently-reading first
+  const grCurrentRes = await fetch(
+    `https://www.goodreads.com/review/list_rss/${GOODREADS_USER_ID}?shelf=currently-reading&t=${Date.now()}`,
+    { headers: { 'User-Agent': 'Mozilla/5.0' } }
+  );
+
+  let foundCurrent = false;
+  if (grCurrentRes.ok) {
+    const xml = await grCurrentRes.text();
+    const parser = new XMLParser({ ignoreAttributes: false });
+    const parsed = parser.parse(xml);
+    const items = parsed?.rss?.channel?.item;
+
+    if (items) {
+      const currentItems = Array.isArray(items) ? items : [items];
+      const activeBook = currentItems[0];
+      if (activeBook && activeBook.title) {
+        latestBook = {
+          title: activeBook.title || "Untitled",
+          creatorOrLocation: activeBook.author_name ? `by ${activeBook.author_name}` : undefined,
+          ratingValue: 0,
+          ratingDisplay: "Reading Now",
+          link: activeBook.link || `https://www.goodreads.com/user/show/${GOODREADS_USER_ID}`,
+          imageUrl: activeBook.book_large_image_url || activeBook.book_image_url || extractPosterFromHtml(activeBook.description || "")
+        };
+        foundCurrent = true;
+      }
+    }
+  }
+
+  // Fallback to latest finished read if not currently reading
+  if (!foundCurrent) {
+    const grReadRes = await fetch(
+      `https://www.goodreads.com/review/list_rss/${GOODREADS_USER_ID}?shelf=read&t=${Date.now()}`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' } }
+    );
+    if (grReadRes.ok) {
+      const xml = await grReadRes.text();
+      const parser = new XMLParser({ ignoreAttributes: false });
+      const parsed = parser.parse(xml);
+      const items = parsed?.rss?.channel?.item;
+      if (items) {
+        const feedItems = Array.isArray(items) ? items : [items];
+        const activeBook = feedItems[0];
+        if (activeBook) {
+          const score = parseInt(activeBook.user_rating, 10) || 0;
+          latestBook = {
+            title: activeBook.title || "Untitled",
+            creatorOrLocation: activeBook.author_name ? `by ${activeBook.author_name}` : undefined,
+            ratingValue: score,
+            ratingDisplay: score > 0 ? "★".repeat(score) : "Read",
+            link: activeBook.link || `https://www.goodreads.com/user/show/${GOODREADS_USER_ID}`,
+            imageUrl: activeBook.book_large_image_url || activeBook.book_image_url || extractPosterFromHtml(activeBook.description || "")
+          };
+        }
+      }
+    }
+  }
+} catch (e) {
+  console.warn("Could not fetch Goodreads for index shelf.", e);
+}
 ---
 
 <BaseLayout title="Home — Aditri Gadigi">
@@ -22,8 +200,103 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         href="/random" 
         class="not-italic text-accent font-medium underline decoration-accent/50 underline-offset-4 hover:decoration-accent hover:text-[#B4383B] active:text-[#7A1E20] transition-colors duration-200"
       >other things</a>. 
-      This site was last updated August 2026.
+      This site was last updated September 2026.
     </p>
+<!-- SHELF ROTATION PREVIEW WITH HOVER DETAILS -->
+    <div class="my-8 pt-2">
+      <div class="flex items-end gap-5 sm:gap-7 overflow-x-auto pb-2 scrollbar-none">
+        
+        <!-- 01: Currently Reading -->
+        <a href={latestBook.link} target="_blank" rel="noopener noreferrer" class="group flex flex-col items-center shrink-0">
+          <div class="relative w-24 sm:w-28 aspect-[2/3] overflow-hidden rounded-[2px] shadow-sm group-hover:-translate-y-1 transition-transform duration-200 border border-[#E2DBD1]/60 bg-[#FAF8F5]">
+            <!-- Poster -->
+            <img 
+              src={latestBook.imageUrl} 
+              alt={latestBook.title} 
+              class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              referrerpolicy="no-referrer"
+              loading="lazy"
+            />
+            <!-- Dark Overlay Details on Hover -->
+            <div class="absolute inset-0 bg-neutral-950/85 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-2 flex flex-col justify-end text-left text-white pointer-events-none">
+              <span class="text-accent text-[#B4383B] font-mono text-[10px] tracking-widest font-semibold leading-none mb-1">
+                {latestBook.ratingDisplay}
+              </span>
+              <p class="font-serif text-[11px] font-semibold leading-tight line-clamp-2">
+                {latestBook.title}
+              </p>
+              {latestBook.creatorOrLocation && (
+                <span class="text-[9px] text-neutral-300 font-sans mt-0.5 line-clamp-1">
+                  {latestBook.creatorOrLocation}
+                </span>
+              )}
+            </div>
+          </div>
+          <span class="font-mono text-[11px] text-muted group-hover:text-accent group-hover:text-[#B4383B] transition-colors mt-2.5">
+            currently reading
+          </span>
+        </a>
+
+        <!-- 02: Last Watched -->
+        <a href={latestFilm.link} target="_blank" rel="noopener noreferrer" class="group flex flex-col items-center shrink-0">
+          <div class="relative w-24 sm:w-28 aspect-[2/3] overflow-hidden rounded-[2px] shadow-sm group-hover:-translate-y-1 transition-transform duration-200 border border-[#E2DBD1]/60 bg-[#FAF8F5]">
+            <!-- Poster -->
+            <img 
+              src={latestFilm.imageUrl} 
+              alt={latestFilm.title} 
+              class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              referrerpolicy="no-referrer"
+              loading="lazy"
+            />
+            <!-- Dark Overlay Details on Hover -->
+            <div class="absolute inset-0 bg-neutral-950/85 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-2 flex flex-col justify-end text-left text-white pointer-events-none">
+              <span class="text-accent text-[#B4383B] font-mono text-[10px] tracking-widest font-semibold leading-none mb-1">
+                {latestFilm.ratingDisplay}
+              </span>
+              <p class="font-serif text-[11px] font-semibold leading-tight line-clamp-2">
+                {latestFilm.title}
+              </p>
+              {latestFilm.creatorOrLocation && (
+                <span class="text-[9px] text-neutral-300 font-sans mt-0.5 line-clamp-1">
+                  {latestFilm.creatorOrLocation}
+                </span>
+              )}
+            </div>
+          </div>
+          <span class="font-mono text-[11px] text-muted group-hover:text-accent group-hover:text-[#B4383B] transition-colors mt-2.5">
+            last watched
+          </span>
+        </a>
+
+        <!-- 03: Last Ate (Beli Receipt) -->
+        <a href="/random#food" class="group flex flex-col items-center shrink-0">
+          <div class="relative w-24 sm:w-28 aspect-[2/3] bg-[#FAF8F5] border border-[#DDD5CA] rounded-[2px] p-2.5 shadow-xs flex flex-col justify-between group-hover:-translate-y-1 transition-transform duration-200">
+            <!-- Header -->
+            <div class="flex justify-between items-start font-mono text-[8px] text-muted leading-tight border-b border-dashed border-[#DDD5CA] pb-1.5">
+              <span class="uppercase font-semibold text-primary/80">Philadelphia, PA</span>
+              <span class="text-accent/80">latest</span>
+            </div>
+
+            <!-- Restaurant Name -->
+            <div class="text-center my-auto py-1">
+              <p class="font-serif text-[13px] font-bold text-primary leading-tight">
+                Bar Bombón
+              </p>
+            </div>
+
+            <!-- Meta / Score -->
+            <div class="flex justify-between items-baseline pt-1.5 border-t border-[#DDD5CA]/80 font-mono text-[9px] text-muted">
+              <span>Latin American</span>
+              <span class="font-bold text-[#B4383B]">7.4</span>
+            </div>
+          </div>
+          <span class="font-mono text-[11px] text-muted group-hover:text-accent group-hover:text-[#B4383B] transition-colors mt-2.5">
+            last ate
+          </span>
+        </a>
+
+      </div>
+    </div>
 
     <div class="flex items-center space-x-3 font-mono text-xs">
       <a 
@@ -45,6 +318,15 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       >
         resume ↗
       </a>
+
+    
     </div>
+
+    
+
+    
   </section>
+
+  
 </BaseLayout>
+
