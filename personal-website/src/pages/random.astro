@@ -5,9 +5,9 @@ import { XMLParser } from 'fast-xml-parser';
 import shelfData from '../data/shelf.json';
 import travelData from '../data/travel.json';
 
-// ==========================================
+
 // 1. CONFIGURATION & TYPES
-// ==========================================
+
 const LETTERBOXD_USER = "aditrigadigi"; 
 const GOODREADS_USER_ID = "204504937"; 
 
@@ -67,9 +67,9 @@ function extractPosterFromHtml(html: string): string | undefined {
   return match ? match[1] : undefined;
 }
 
-// ==========================================
-// 2. GOODREADS FETCH (STRICT 5-STAR ONLY)
-// ==========================================
+
+// 2. GOODREADS FETCH 
+
 let allBooks: ShelfEntry[] = [];
 
 try {
@@ -109,9 +109,9 @@ const topBooks = allBooks
   .filter((b) => b.ratingValue === 5)
   .slice(0, 4);
 
-// ==========================================
-// 3. RESTAURANTS & MUSIC (shelf.json)
-// ==========================================
+
+// 3. RESTAURANTS & MUSIC 
+
 const sortedRestaurants = [...(shelfData.restaurants || [])].sort((a, b) => b.rating - a.rating);
 const topRestaurants = sortedRestaurants.slice(0, 4);
 
@@ -176,9 +176,7 @@ const favoriteMusic = (shelfData as any).music || [
 
   <div class="space-y-16">
 
-    <!-- ==========================================
-         SECTION 01: FAVORITES (TIGHTER SUBSECTIONS)
-         ========================================== -->
+    <!-- SECTION 01: FAVORITES  -->
     <section class="space-y-6">
       <div class="flex items-baseline space-x-2 border-b border-surface pb-3">
         <h2 class="font-serif text-2xl font-semibold text-primary">Favorites</h2>
@@ -376,9 +374,7 @@ const favoriteMusic = (shelfData as any).music || [
 
     </section>
 
-    <!-- ==========================================
-         SECTION 02: PLACES & BUCKET LISTS
-         ========================================== -->
+    <!-- SECTION 02: PLACES & BUCKET LISTS -->
     <section class="space-y-6">
       <div class="flex items-baseline justify-between border-b border-surface pb-3">
         <div class="flex items-baseline space-x-2">
@@ -451,9 +447,7 @@ const favoriteMusic = (shelfData as any).music || [
       </div>
     </section>
 
-    <!-- ==========================================
-         SECTION 03: Others
-         ========================================== -->
+    <!-- SECTION 03: Others -->
     <section class="space-y-4">
       <div class="flex items-baseline justify-between border-b border-surface pb-3">
         <div class="flex items-baseline space-x-2">
@@ -480,7 +474,7 @@ const favoriteMusic = (shelfData as any).music || [
 
             <!-- Streak Counter & Record -->
             <div class="flex items-baseline space-x-2 font-mono text-xs shrink-0">
-              <span class="font-semibold text-accent text-[#B4383B]">
+              <span class="font-semibold text-accent">
                 {game.streak} {game.streak === 1 ? 'day' : 'days'}
               </span>
               <span class="text-[10px] text-muted">
